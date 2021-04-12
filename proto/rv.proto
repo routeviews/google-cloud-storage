@@ -4,6 +4,8 @@
 syntax = "proto3";
 package rv.proto;
 
+option go_package = "github.com/morrowc/rv/proto/rv";
+
 // RV Service definition.
 service RV {
   // FileUpload accepts a single file upload request and
@@ -15,13 +17,13 @@ message FileRequest {
   // The full path of the file from the rsync top directory, ie:
   // path: rsync://archive.routeviews.org/routeviews/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
   //   is: routeviews/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
-  optional string filename = 1;
+  string filename = 1;
   // A sha256sum of the file content.
-  optional string sha256 = 2;
+  string sha256 = 2;
   // The actual file content, as bytes.
-  optional bytes content = 3;
+  bytes content = 3;
   // Whether or not to convert the file. Not all files uploaded should be converted.
-  optional bool convert_sql = 4;
+  bool convert_sql = 4;
 }
 
 message FileResponse {
@@ -31,7 +33,7 @@ message FileResponse {
     FAIL    = 2;
   }
   // Return a simple status value success/fail.
-  optional Status status = 1;
+  Status status = 1;
   // If the status is FAIL, provide an error string to be logged.
-  optional string error_message = 2;
+  string error_message = 2;
 }
