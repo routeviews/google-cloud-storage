@@ -4,8 +4,8 @@
 
 [Routeviews](http://www.routeviews.org)(RV) provides data collected from various
 route collectors. The data comes from BGP peers to the route collectors, historical
-data from at least 2004 is available. Review the RV website for specifics on
-data formats / timing.
+data from at least 2004 is available. Review the RV [website](http://www.routeviews.org/routeviews/index.php/archive/) 
+for specifics on data formats / timing.
 
 This project's goal is to provide the RV data through a standard cloud storage
 mechanism uploading/archiving the data to at least:
