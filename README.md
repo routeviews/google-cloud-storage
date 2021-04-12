@@ -61,3 +61,60 @@ Items to build, research, test or evaluate in creating the services outlined abo
 5. Server infrastructure to accept the gRPC request, process the included file and provide status.
 6. Metrics to collect on the server portion of the processing (prometheus metrics)
 
+
+## FileRequest Specification.
+The following attributes should be included in the grpc FileRequest message
+
+ 1. name: `filename`  
+    type: `string`  
+    description: `The full path of the file from the rsync top directory.`  
+    example1:   
+     ```
+     path: rsync://archive.routeviews.org/bgpdata/2021.03/UPDATES/update.20210331.2345.bz2  
+     becomes: /bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
+     ```  
+    example2:  
+     ```
+     path: rsync://archive.routeviews.org/route-views.amsix/bgpdata/2021.03/UPDATES/update.20210331.2345.bz2  
+     becomes: /route-views.amsix/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
+     ```
+ 2. name: `sha256`  
+    type: `string`  
+    description: `A sha256 checksum of the content field (The metadata already includes an md5_hash?)`  
+ 3. name: `content`  
+    type: `bytes`  
+    description: `The actual MRT RIB or UPDATE bzipped file content, as bytes`  
+ 4. name: `convert_sql`  
+    type: `bool`  
+    description: `Whether or not to convert the file to SQL for BigQuery. not all files uploaded show be converted`
+ 5. name: `project`  
+    type: `string`  
+    description: `A project name that idenifies where the data is coming from, e.g RouteViews, RIS, Isolario, etc.`  
+
+## Metadata
+The following metadata should be retrievable during and after the grpc request has been made. Many of these attributes may be included from the standard set of metadata API (https://cloud.google.com/storage/docs/metadata) attributes. Some of these attributes overlap with FileRequest spec. It's unclear where this metadata will sit in relation to the actual data, or if the metadata will be searchable/filterable.
+
+ 1. name: `status`  
+    type: `string`  
+    description: `The current status of the file transfer, e.g. "None", "In Progress", "Done"` 
+ 2. name: `filename`  
+    type: `string`  
+    description: `The filepath used in the FileRequest grpc call.`  
+ 3. name: `content-type`  
+    type: `string`  
+    description: `The IANA media type of the file, e.g. application/octet-stream, or application/MRT?`  
+ 4. name: `content-encoding`  
+    type: `string`  
+    description: `The encoding of file, e.g. bzip2`
+ 5. name: `updated`  
+    type: `timestamp`  
+    description: `The last date and time the file or metadata was update.`
+ 6. name: `project`  
+    type: `string`
+    description: `The project used in the FileRequest grpc call`  
+ 7. name: `collector ID`  
+    type: `string`  
+    description: `An identifier that can be associated with a collector, e.g. route-views.amsix`
+ 8. name: `MRT_type`  
+    type: `enum` 
+    description: `The type of the MRT file, e.g. RIB or UPDATE`
