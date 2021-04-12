@@ -3,7 +3,7 @@
 ## Overview
 
 [Routeviews](http://www.routeviews.org)(RV) provides data collected from various
-route servers. The data comes from BGP peers to the route servers, historical
+route collectors. The data comes from BGP peers to the route collectors, historical
 data from at least 2004 is available. Review the RV website for specifics on
 data formats / timing.
 
