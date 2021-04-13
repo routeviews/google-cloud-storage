@@ -19,6 +19,7 @@ message FileRequest {
     UNKNOWN = 0;
     ROUTEVIEWS = 1;
     RIPE_RIS = 2;
+    RPKI_RARC = 3;
   }
   // The full path of the file from the rsync top directory, ie:
   // path: rsync://archive.routeviews.org/routeviews/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
