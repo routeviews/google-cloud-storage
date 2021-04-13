@@ -14,6 +14,12 @@ service RV {
 }
 
 message FileRequest {
+  // Project is the sender to the system.
+  enum Project {
+    UNKNOWN = 0;
+    ROUTEVIEWS = 1;
+    RIPE_RIS = 2;
+  }
   // The full path of the file from the rsync top directory, ie:
   // path: rsync://archive.routeviews.org/routeviews/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
   //   is: routeviews/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
@@ -26,11 +32,7 @@ message FileRequest {
   bool convert_sql = 4;
   // project is a list of senders of data to this storage system.
   // Each project may require different processing steps to accomplish the final stoarge goals.
-  enum Project {
-    UNKNOWN = 0;
-    ROUTEVIEWS = 1;
-    RIPE_RIS = 2;
-  }
+  Project project = 5;
 }
 
 message FileResponse {
