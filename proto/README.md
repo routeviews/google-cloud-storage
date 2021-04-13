@@ -24,6 +24,6 @@ The following attributes should be included in the grpc FileRequest message
     type: `bool`  
     description: `Whether or not to convert the file to SQL for BigQuery. not all files uploaded show be converted`
  5. name: `project`  
-    type: `Project` - enum value
-    description: `A project name that idenifies where the data is coming from, e.g RouteViews, RIS, Isolario, etc.`  
+    type: `Project`
+    description: `A value from the Project enum that idenifies where the data is coming from, e.g RouteViews, RIS, Isolario, etc.`  
 ,
