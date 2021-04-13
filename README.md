@@ -48,49 +48,6 @@ data should be loaded into the BigQuery instance and a reply to the CLI caller s
 The server must provide either affirmation that the files were handled properly, or an error
 with appropriate status information about the fate of the file, conversion and bigquery uplaod.
 
-## Work Items
-
-Items to build, research, test or evaluate in creating the services outlined above:
-
-1. metadata storage system - a resilent service which can serve and store data about
-   each file uploaded and at which stage of processing the file has progressed.
-2. Cloud Storage bucket (https://storage.cloud.google.com/archive-routeviews/helowurld.txt)
-   NOTE: the referenced path is not public, it should be.
-3. BigQuery schema for the data to be loaded
-4. CLI Client to read a file, package that file in a protobuf and send to a gRPC endpoint.
-5. Server infrastructure to accept the gRPC request, process the included file and provide status.
-6. Metrics to collect on the server portion of the processing (prometheus metrics)
-
-
-## FileRequest Specification.
-The following attributes should be included in the grpc FileRequest message
-
- 1. name: `filename`  
-    type: `string`  
-    description: `The full path of the file from the rsync top directory.`  
-    example1:   
-     ```
-     path: rsync://archive.routeviews.org/bgpdata/2021.03/UPDATES/update.20210331.2345.bz2  
-     becomes: /bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
-     ```  
-    example2:  
-     ```
-     path: rsync://archive.routeviews.org/route-views.amsix/bgpdata/2021.03/UPDATES/update.20210331.2345.bz2  
-     becomes: /route-views.amsix/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
-     ```
- 2. name: `sha256`  
-    type: `string`  
-    description: `A sha256 checksum of the content field (The metadata already includes an md5_hash?)`  
- 3. name: `content`  
-    type: `bytes`  
-    description: `The actual MRT RIB or UPDATE bzipped file content, as bytes`  
- 4. name: `convert_sql`  
-    type: `bool`  
-    description: `Whether or not to convert the file to SQL for BigQuery. not all files uploaded show be converted`
- 5. name: `project`  
-    type: `string`  
-    description: `A project name that idenifies where the data is coming from, e.g RouteViews, RIS, Isolario, etc.`  
-
 ## Metadata
 The following metadata should be retrievable during and after the grpc request has been made. Many of these attributes may be included from the standard set of metadata API (https://cloud.google.com/storage/docs/metadata) attributes. Some of these attributes overlap with FileRequest spec. It's unclear where this metadata will sit in relation to the actual data, or if the metadata will be searchable/filterable.
 
