@@ -24,6 +24,13 @@ message FileRequest {
   bytes content = 3;
   // Whether or not to convert the file. Not all files uploaded should be converted.
   bool convert_sql = 4;
+  // project is a list of senders of data to this storage system.
+  // Each project may require different processing steps to accomplish the final stoarge goals.
+  enum Project {
+    UNKNOWN = 0;
+    ROUTEVIEWS = 1;
+    RIPE_RIS = 2;
+  }
 }
 
 message FileResponse {
