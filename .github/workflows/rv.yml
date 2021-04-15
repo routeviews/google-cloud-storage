@@ -1,5 +1,5 @@
 name: RV
-on: [push]
+on: ["push", "pull_request"]
 jobs:
 
   build:
@@ -26,21 +26,6 @@ jobs:
 
     - name: Test
       run: go test ./...
-
-    - name: TestCoverage
-      run: go test -v -coverprofile=coverage.out -covermode=count ./... ; sed -i "s/$(pwd|sed 's/\//\\\//g')/./g" coverage.out
-
-    - name: ConvertCoverage
-      uses: jandelgado/gcov2lcov-action@v1.0.0
-      with:
-        infile: coverage.out
-        outfile: coverage.lcov
-
-    - name: Coveralls Github Action
-      uses: coverallsapp/github-action@v1.0.1
-      with:
-        github-token: ${{ secrets.coveralls_token }}
-        path-to-lcov: ./coverage.lcov
 
     - name: Build
       run: go build -v .
