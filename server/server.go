@@ -19,6 +19,8 @@ import (
 var (
 	port   = flag.Int("port", 9876, "Port on which gRPC connections will come.")
 	apiKey = flag.String("apikey", "", "API Key to use in cloud storage operations.")
+
+	// TODO(morrowc): find a method to define the TLS certificate to be used.
 )
 
 type RV struct {
