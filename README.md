@@ -80,3 +80,32 @@ be searchable/filterable.
  8. name: `MRT_type`  
     type: `enum` 
     description: `The type of the MRT file, e.g. RIB or UPDATE`
+
+# For Developers
+
+With the gRPC interface defined, we actually have to instantiate a server and client that implement this interface.
+For simplicity of maintaining RouteViews infrastructure, we the client will be implemented in Python.
+The server is implemented in Go.
+
+## Client
+
+Install the dependencies that we need into a python virtual environment, `venv`.
+
+    python3 -m venv venv
+    pip install --upgrade pip
+    pip install -r requirements.txt
+    source venv/bin/activate
+
+Now that we have all the needed dependencies, we can generate the gRPC python code that provides the Client 'Stub' 
+interface (which is implemented in our `client.py` source code). 
+    
+    cd proto
+    make proto_py
+
+Finally, all the pieces are in place so that we can run the Python client.
+
+    python client/client.py --file test.txt
+
+### Examples
+
+    

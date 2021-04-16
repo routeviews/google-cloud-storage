@@ -8,10 +8,9 @@ Storage solution for the RouteViews project.
 
 ## Installation and Usage
 
-    # NOTE: We recommend using a python virtual environment.
-    pip install -r requirments.txt
+This solution is deployed to PyPI, so you can install it simply using the command `pip install 
+routeviews-google-upload`.
 
-    # Generate the needed gRPC protobuf python source-files
-    cd ../proto
-    make
-    cd -
+    pip install routeviews-google-upload
+
+Then, run the command with the `--help` argument to see all the expected and available arguments.

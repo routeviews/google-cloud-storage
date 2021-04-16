@@ -13,4 +13,5 @@ proto_go: *.proto
 
 proto_py: *.proto
 	python3 -m grpc_tools.protoc --proto_path=. rv.proto --python_out=. --grpc_python_out=.
-	touch __init__.py
+	cp *.py ../server
+	cp *.py ../routeviews_google_upload

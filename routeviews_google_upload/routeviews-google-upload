@@ -1,0 +1,5 @@
+import sys
+
+from routeviews_google_upload import client
+
+client.main(sys.argv[1:])
