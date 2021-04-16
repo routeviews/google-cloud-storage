@@ -3,7 +3,7 @@
 This project provides a (Python) client that takes a file and sends it to the Google Cloud 
 Storage solution for the RouteViews project. 
 
-> This solution is based on protobufs, which is discussed more in [this project's top-level 
+> This solution is based on gRPC and protobufs, which is discussed more in [this project's top-level 
 > README](../README.md).
 
 ## Installation and Usage
@@ -56,7 +56,7 @@ In fact, back in the `server` terminal, you should now see a "Recieved a request
 # For Developers
 
 For developers who are actively developing on this solution, we recommend using a Python virtual environment to manage 
-dependencies and installing the local package in `editable` mode. 
+dependencies and installing the local package in `editable` mode.
 
 Install the dependencies that we need into a python virtual environment, `venv`.
 

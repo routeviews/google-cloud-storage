@@ -37,7 +37,7 @@ $ routeviews-google-upload --file <filepath> --dest https://thing.com
 > This CLI tool is implemented! See more details in the [routeviews_google_upload project 
 > README](routeviews_google_upload/README.md)
 
-The CLI tool should package up the file content, path and a sha256 checksum of the content
+The CLI tool should package up the file content, path and a MD5  checksum of the content
 in a Google Protobuf, and send that data over a [gRPC](https://gRPC.io) connection to a
 cloud service. An upload event should be idempotent, meaning uploading the same file
 multiple times should not negatively impact the archive.

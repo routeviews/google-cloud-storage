@@ -34,7 +34,7 @@ def upload(grpc_server, file_path, to_sql=False):
     fr.project = 1  # TODO should this be an argument rather than hardcoded?
     fr.convert_sql = to_sql
     fr.content = content
-    fr.md5 = md5(content).hexdigest()
+    fr.md5sum = md5(content).hexdigest()
 
     # 3. Send to a gRPC endpoint.
     with grpc.insecure_channel(grpc_server) as channel:

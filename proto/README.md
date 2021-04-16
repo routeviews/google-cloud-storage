@@ -14,7 +14,7 @@ The following attributes should be included in the grpc FileRequest message
      path: rsync://archive.routeviews.org/route-views.amsix/bgpdata/2021.03/UPDATES/update.20210331.2345.bz2  
      becomes: /route-views.amsix/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
      ```
- 2. name: `md5`  
+ 2. name: `md5sum`  
     type: `string`  
     description: `A md5 checksum of the content field.`  
  3. name: `content`  
