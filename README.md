@@ -31,8 +31,11 @@ Initially a CLI client for the RV upload part of the solution which can be run w
 command-line options such as:
 
 ```shell
-$ upload-to-cloudz -f <filepath> -d https://thing.com
+$ routeviews-google-upload --file <filepath> --dest https://thing.com
 ```
+
+> This CLI tool is implemented! See more details in the [routeviews_google_upload project 
+> README](routeviews_google_upload/README.md)
 
 The CLI tool should package up the file content, path and a sha256 checksum of the content
 in a Google Protobuf, and send that data over a [gRPC](https://gRPC.io) connection to a
@@ -84,28 +87,13 @@ be searchable/filterable.
 # For Developers
 
 With the gRPC interface defined, we actually have to instantiate a server and client that implement this interface.
-For simplicity of maintaining RouteViews infrastructure, we the client will be implemented in Python.
-The server is implemented in Go.
 
-## Client
+For simplicity of maintaining RouteViews infrastructure, the client is implemented in Python (similar to other 
+RouteViews automation solutions).
+The client is implemented and owned by the University of Oregon Network and Telecome Services team, who are the primary 
+maintainers of RouteViews.
 
-Install the dependencies that we need into a python virtual environment, `venv`.
+> See more details in the [routeviews_google_upload project README](routeviews_google_upload/README.md)
 
-    python3 -m venv venv
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    source venv/bin/activate
+The server is implemented in Go and maintained by Chris Marrow at Google.
 
-Now that we have all the needed dependencies, we can generate the gRPC python code that provides the Client 'Stub' 
-interface (which is implemented in our `client.py` source code). 
-    
-    cd proto
-    make proto_py
-
-Finally, all the pieces are in place so that we can run the Python client.
-
-    python client/client.py --file test.txt
-
-### Examples
-
-    

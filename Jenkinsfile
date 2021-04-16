@@ -28,7 +28,7 @@ pipeline {
 
         stage('Publish to PyPI') {
             when {  // Only "deploy" if on the 'main' branch
-                expression { return env.BRANCH_NAME == 'py-client' }
+                expression { return env.BRANCH_NAME == 'main' }
             }
             steps {
                 // Finalize the PyPI deployment!

@@ -10,7 +10,7 @@ import rv_pb2
 class Servicer(rv_pb2_grpc.RVServicer):
     def FileUpload(self, request, context):
         msg = f"DEBUG::ECHO::\n{indent(str(request), '    ')}\n"
-        print(msg)
+        print(f'Received a request -- responding with `failure` Status and an error_message: {msg}')
         return rv_pb2.FileResponse(status=2, error_message=msg)
 
 
@@ -19,6 +19,7 @@ def serve():
     rv_pb2_grpc.add_RVServicer_to_server(Servicer(), server)
     server.add_insecure_port('[::]:50051')
     server.start()
+    print('RouteViews gRPC debug server is running...')
     server.wait_for_termination()
 
 

@@ -20,25 +20,24 @@ def read_bytes(file_path):
         return f.read()
 
 
-def main(args):
-    args = parse_args(args)
-    run(args)
-
-
 def run(args):
+    upload(args.dest, args.file, args.to_sql)
+
+
+def upload(grpc_server, file_path, to_sql=False):
     # 1. Read the provided file.
-    content = read_bytes(args.file)
+    content = read_bytes(file_path)
 
     # 2. Package that file in a gRPC protobuf.
     fr = rv_pb2.FileRequest()
-    fr.filename = args.file
-    fr.project = 1  # TODO should this be more than hardcoded?
-    fr.convert_sql = args.to_sql
+    fr.filename = file_path
+    fr.project = 1  # TODO should this be an argument rather than hardcoded?
+    fr.convert_sql = to_sql
     fr.content = content
     fr.md5 = md5(content).hexdigest()
 
     # 3. Send to a gRPC endpoint.
-    with grpc.insecure_channel(args.dest) as channel:
+    with grpc.insecure_channel(grpc_server) as channel:
         client = rv_pb2_grpc.RVStub(channel)
         response = client.FileUpload(fr)
         print("Status: " + str(response.status))
@@ -46,13 +45,17 @@ def run(args):
             print("Error Message: " + response.error_message)
 
 
-def parse_args(args):
-    parser = argparse.ArgumentParser()
+def config_parser(parser):
     parser.add_argument('--file', required=True, help='The file to be sent to the Google Cloud.')
     parser.add_argument('--dest', required=True,
                         help="The gRPC server where to send the file (use 'localhost:50051' for local development)")
     parser.add_argument('--to-sql', action='store_true', help='Convert to sql (for uploading to BigQuery).')
-    return parser.parse_args(args)
+
+
+def main(args):
+    parser = argparse.ArgumentParser()
+    config_parser(parser)
+    run(args)
 
 
 if __name__ == '__main__':
