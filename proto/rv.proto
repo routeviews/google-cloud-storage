@@ -25,8 +25,8 @@ message FileRequest {
   // path: rsync://archive.routeviews.org/routeviews/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
   //   is: routeviews/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
   string filename = 1;
-  // A md5 of the file content.
-  string md5 = 2;
+  // A md5sum of the file content.
+  string md5sum = 2;
   // The actual file content, as bytes.
   bytes content = 3;
   // Whether or not to convert the file. Not all files uploaded should be converted.

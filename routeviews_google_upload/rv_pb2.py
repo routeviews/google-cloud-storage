@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z\036github.com/morrowc/rv/proto/rv',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x08rv.proto\x12\x08rv.proto\"\xc7\x01\n\x0b\x46ileRequest\x12\x10\n\x08\x66ilename\x18\x01 \x01(\t\x12\x0b\n\x03md5\x18\x02 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\x0c\x12\x13\n\x0b\x63onvert_sql\x18\x04 \x01(\x08\x12.\n\x07project\x18\x05 \x01(\x0e\x32\x1d.rv.proto.FileRequest.Project\"C\n\x07Project\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0e\n\nROUTEVIEWS\x10\x01\x12\x0c\n\x08RIPE_RIS\x10\x02\x12\r\n\tRPKI_RARC\x10\x03\"\x82\x01\n\x0c\x46ileResponse\x12-\n\x06status\x18\x01 \x01(\x0e\x32\x1d.rv.proto.FileResponse.Status\x12\x15\n\rerror_message\x18\x02 \x01(\t\",\n\x06Status\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\x08\n\x04\x46\x41IL\x10\x02\x32\x41\n\x02RV\x12;\n\nFileUpload\x12\x15.rv.proto.FileRequest\x1a\x16.rv.proto.FileResponseB Z\x1egithub.com/morrowc/rv/proto/rvb\x06proto3'
+  serialized_pb=b'\n\x08rv.proto\x12\x08rv.proto\"\xca\x01\n\x0b\x46ileRequest\x12\x10\n\x08\x66ilename\x18\x01 \x01(\t\x12\x0e\n\x06md5sum\x18\x02 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\x0c\x12\x13\n\x0b\x63onvert_sql\x18\x04 \x01(\x08\x12.\n\x07project\x18\x05 \x01(\x0e\x32\x1d.rv.proto.FileRequest.Project\"C\n\x07Project\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0e\n\nROUTEVIEWS\x10\x01\x12\x0c\n\x08RIPE_RIS\x10\x02\x12\r\n\tRPKI_RARC\x10\x03\"\x82\x01\n\x0c\x46ileResponse\x12-\n\x06status\x18\x01 \x01(\x0e\x32\x1d.rv.proto.FileResponse.Status\x12\x15\n\rerror_message\x18\x02 \x01(\t\",\n\x06Status\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\x08\n\x04\x46\x41IL\x10\x02\x32\x41\n\x02RV\x12;\n\nFileUpload\x12\x15.rv.proto.FileRequest\x1a\x16.rv.proto.FileResponseB Z\x1egithub.com/morrowc/rv/proto/rvb\x06proto3'
 )
 
 
@@ -54,8 +54,8 @@ _FILEREQUEST_PROJECT = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=155,
-  serialized_end=222,
+  serialized_start=158,
+  serialized_end=225,
 )
 _sym_db.RegisterEnumDescriptor(_FILEREQUEST_PROJECT)
 
@@ -84,8 +84,8 @@ _FILERESPONSE_STATUS = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=311,
-  serialized_end=355,
+  serialized_start=314,
+  serialized_end=358,
 )
 _sym_db.RegisterEnumDescriptor(_FILERESPONSE_STATUS)
 
@@ -106,7 +106,7 @@ _FILEREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='md5', full_name='rv.proto.FileRequest.md5', index=1,
+      name='md5sum', full_name='rv.proto.FileRequest.md5sum', index=1,
       number=2, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -147,7 +147,7 @@ _FILEREQUEST = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=23,
-  serialized_end=222,
+  serialized_end=225,
 )
 
 
@@ -186,8 +186,8 @@ _FILERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=225,
-  serialized_end=355,
+  serialized_start=228,
+  serialized_end=358,
 )
 
 _FILEREQUEST.fields_by_name['project'].enum_type = _FILEREQUEST_PROJECT
@@ -222,8 +222,8 @@ _RV = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=357,
-  serialized_end=422,
+  serialized_start=360,
+  serialized_end=425,
   methods=[
   _descriptor.MethodDescriptor(
     name='FileUpload',
