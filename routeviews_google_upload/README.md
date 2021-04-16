@@ -120,13 +120,16 @@ The CICD solution does depend on some Jenkins Credentials, specified below.
 * Branch Sources
     * Git
         * *Project Repository*: This project 
-        * *Credentials*: nts_github_jenkins_rsa (see above)
+        * *Credentials*: `nts_github_jenkins_rsa` (see above)
         * *Behaviors*: 
             - Discover Branches
             - Clean before checkout ('YES' to 'Delete untracked nested repositories')
 * Build Configuration
-    * by Jenkinsfile
+    * by Jenkinsfile 
+* Scan Multibranch Pipeline Triggers
+  * Periodically if not otherwise run
+    * Interval: `2 minutes`
 * Orphaned Item Strategy
     * Discard old items
-        * *Days to keep old items*: 90
+        * *Days to keep old items*: `90`
 
