@@ -6,7 +6,7 @@ install_requires = [
 ]
 
 setup(name="routeviews-google-upload",
-      packages=find_packages('./routeviews_google_upload'),
+      packages=find_packages('routeviews_google_upload'),
       version=routeviews_google_upload.__version__,
       license='apache-2.0',  # Chose a license from here: https://help.github.com/articles/licensing-a-repository
       description="CLI tool for uploading RouteViews files to Google Cloud Storage (and other Google Cloud services).",
