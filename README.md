@@ -90,10 +90,9 @@ With the gRPC interface defined, we actually have to instantiate a server and cl
 
 For simplicity of maintaining RouteViews infrastructure, the client is implemented in Python (similar to other 
 RouteViews automation solutions).
-The client is implemented and owned by the University of Oregon Network and Telecome Services team, who are the primary 
+The client is implemented and owned by the University of Oregon Network and Telecom Services team, who are the primary 
 maintainers of RouteViews.
 
 > See more details in the [routeviews_google_upload project README](routeviews_google_upload/README.md)
 
-The server is implemented in Go and maintained by Chris Marrow at Google.
-
+The server is implemented in Go and maintained by Chris Morrow at Google.

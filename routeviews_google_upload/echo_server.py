@@ -19,7 +19,7 @@ def serve():
     rv_pb2_grpc.add_RVServicer_to_server(Servicer(), server)
     server.add_insecure_port('[::]:50051')
     server.start()
-    print('RouteViews gRPC debug server is running...')
+    print('RouteViews gRPC debug server is listening on port 50051...')
     server.wait_for_termination()
 
 
