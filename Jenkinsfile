@@ -30,16 +30,12 @@ pipeline {
             when {  // Only "deploy" if on the 'main' branch
                 expression { return env.BRANCH_NAME == 'main' }
             }
-            stages {
-                stage('Publish to PyPI') {
-                    steps {
-                        // Finalize the PyPI deployment!
-                        withPythonEnv('python3') {
-                            withCredentials([usernamePassword(credentialsId: 'nts_pypi', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
-                                sh 'pip install twine'
-                                sh 'twine upload dist/* -u \$USER -p \$PASS --verbose'
-                            }
-                        }
+            steps {
+                // Finalize the PyPI deployment!
+                withPythonEnv('python3') {
+                    withCredentials([usernamePassword(credentialsId: 'nts_pypi', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
+                        sh 'pip install twine'
+                        sh 'twine upload dist/* -u \$USER -p \$PASS --verbose'
                     }
                 }
             }
