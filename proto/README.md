@@ -14,16 +14,16 @@ The following attributes should be included in the grpc FileRequest message
      path: rsync://archive.routeviews.org/route-views.amsix/bgpdata/2021.03/UPDATES/update.20210331.2345.bz2  
      becomes: /route-views.amsix/bgpdata/2021.03/UPDATES/updates.20210331.2345.bz2
      ```
- 2. name: `sha256`  
+ 2. name: `md5sum`  
     type: `string`  
-    description: `A sha256 checksum of the content field (The metadata already includes an md5_hash?)`  
+    description: `A md5 checksum of the content field.`  
  3. name: `content`  
     type: `bytes`  
-    description: `The actual MRT RIB or UPDATE bzipped file content, as bytes`  
- 4. name: `convert_sql`  
+    description: `The actual MRT RIB or UPDATE bzipped file content, as bytes.`  
+ 4. name: `convert_sql`    
     type: `bool`  
-    description: `Whether or not to convert the file to SQL for BigQuery. not all files uploaded show be converted`
+    description: `Whether or not to convert the file to SQL for BigQuery. (some files should NOT be converted).`
  5. name: `project`  
-    type: `Project`
-    description: `A value from the Project enum that idenifies where the data is coming from, e.g RouteViews, RIS, Isolario, etc.`  
-,
+    type: `Project`  
+    description: `A value from the Project enum that idenifies where the data is coming from, e.g RouteViews, RIS, 
+    Isolario, etc.`  
