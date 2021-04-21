@@ -1,5 +1,7 @@
 # Collect and store RouteViews data, from a Cloud Service
 
+![](https://github.com/morrowc/rv/workflows/RV/badge.svg)
+
 ## Overview
 
 [Routeviews](http://www.routeviews.org)(RV) provides data collected from various
