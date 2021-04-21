@@ -1,6 +1,6 @@
 # Collect and store RouteViews data, from a Cloud Service
 
-![](https://github.com/morrowc/rv/workflows/RV/badge.svg)
+![GitHub Worfklow Status](https://github.com/morrowc/rv/workflows/RV/badge.svg)
 
 ## Overview
 
