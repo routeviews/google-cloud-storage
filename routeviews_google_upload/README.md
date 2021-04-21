@@ -1,5 +1,7 @@
 # RouteViews Google Cloud Storage Client
 
+[![PyPI version](https://badge.fury.io/py/routeviews-google-upload.svg)](https://badge.fury.io/py/routeviews-google-upload)
+
 This project provides a (Python) client that takes a file and sends it to the Google Cloud 
 Storage solution for [the Google+RouteViews project](https://github.com/morrowc/rv).
 
