@@ -106,12 +106,12 @@ The CICD solution does depend on some Jenkins Credentials, specified below.
 |---|
 
 
-> This solution depends on the ['Jenkins - UO NTS' GitHub App](https://github.com/apps/jenkins-university-of-oregon-nts), which is 
+> This solution depends on the ['Jenkins UO NTS' GitHub App](https://github.com/apps/jenkins-university-of-oregon-nts), which is 
 > discussed in detail in the ["NTS Jenkins Best Practices" (NTS internal documentation)](https://confluence.uoregon.edu/x/awxHGQ)
 
-|  Credential ID     | Type    | Where to find the secret value?|
-|-------------------|-----------|------------------------------|
-| nts_jenkins           | GitHub App | Generated from GitHub (and converted according to instructions in Jenkins) | 
+|  Credential ID               | Type       | Where to find the secret value?|
+|------------------------------|------------|--------------------------------|
+| github_app_routeviews_google | GitHub App | **Private Key** generated from ['Jenkins UO NTS' GitHub App settings page](https://github.com/organizations/routeviews/settings/apps/jenkins-university-of-oregon-nts) (and converted according to instructions in Jenkins) | 
 
 
 ### Jenkins Pipeline: routeviews-google-upload-CICD 
@@ -126,10 +126,8 @@ The CICD solution does depend on some Jenkins Credentials, specified below.
 * Branch Sources
     * Git
         * *Project Repository*: This project 
-        * *Credentials*: `nts_jenkins` (see above)
-        * *Behaviors*: 
-            - Discover Branches
-            - Clean before checkout ('YES' to 'Delete untracked nested repositories')
+        * *Credentials*: `github_app_routeviews_google` (see above)
+        * *Behaviors*: *Use Default Settings*
 * Build Configuration
     * by Jenkinsfile 
 * Orphaned Item Strategy
