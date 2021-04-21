@@ -1,10 +1,9 @@
 # RouteViews Google Cloud Storage Client
 
-This project provides a (Python) client that takes a file and sends it to the Google Cloud 
-Storage solution for the RouteViews project. 
+[![PyPI version](https://badge.fury.io/py/routeviews-google-upload.svg)](https://badge.fury.io/py/routeviews-google-upload)
 
-> This solution is based on gRPC and protobufs, which is discussed more in [this project's top-level 
-> README](../README.md).
+This project provides a (Python) client that takes a file and sends it to the Google Cloud 
+Storage solution for [the Google+RouteViews project](https://github.com/morrowc/rv).
 
 ## Installation and Usage
 
@@ -103,9 +102,16 @@ The following are some 'protection rules' that we might want to consider
 We have a single Jenkins Pipeline that supports CICD for this project.
 The CICD solution does depend on some Jenkins Credentials, specified below.
 
-|           Credential ID           | Type                          | Where to find the secret value?|
-|-----------------------------------|-------------------------------|--------------------------------|
-| nts_github_jenkins_rsa           | SSH Username with private key | NTS KeePass -> General -> PKI Keys -> nts_github_app_jenkins_rsa | 
+| [The Jenkins Pipeline (NTS internal service)](https://is-nts-jenkins.uoregon.edu/job/routeviews-google-upload-CICD/) | 
+|---|
+
+
+> This solution depends on the ['Jenkins UO NTS' GitHub App](https://github.com/apps/jenkins-university-of-oregon-nts), which is 
+> discussed in detail in the ["NTS Jenkins Best Practices" (NTS internal documentation)](https://confluence.uoregon.edu/x/awxHGQ)
+
+|  Credential ID               | Type       | Where to find the secret value?|
+|------------------------------|------------|--------------------------------|
+| github_app_routeviews_google | GitHub App | **Private Key** generated from ['Jenkins UO NTS' GitHub App settings page](https://github.com/organizations/routeviews/settings/apps/jenkins-university-of-oregon-nts) (and converted according to instructions in Jenkins) | 
 
 
 ### Jenkins Pipeline: routeviews-google-upload-CICD 
@@ -120,16 +126,11 @@ The CICD solution does depend on some Jenkins Credentials, specified below.
 * Branch Sources
     * Git
         * *Project Repository*: This project 
-        * *Credentials*: `nts_github_jenkins_rsa` (see above)
-        * *Behaviors*: 
-            - Discover Branches
-            - Clean before checkout ('YES' to 'Delete untracked nested repositories')
+        * *Credentials*: `github_app_routeviews_google` (see above)
+        * *Behaviors*: *Use Default Settings*
 * Build Configuration
     * by Jenkinsfile 
-* Scan Multibranch Pipeline Triggers
-  * Periodically if not otherwise run
-    * Interval: `2 minutes`
 * Orphaned Item Strategy
     * Discard old items
         * *Days to keep old items*: `90`
-
+    

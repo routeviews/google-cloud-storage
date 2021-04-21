@@ -17,7 +17,6 @@ def get_version(rel_path):
     else:
         raise RuntimeError("Unable to find version string.")
 
-
 install_requires = [
     "grpcio>=1.0.0",
 ]
@@ -27,6 +26,8 @@ setup(name="routeviews-google-upload",
       version=get_version('routeviews_google_upload/__init__.py'),
       license='apache-2.0',  # Chose a license from here: https://help.github.com/articles/licensing-a-repository
       description="CLI tool for uploading RouteViews files to Google Cloud Storage (and other Google Cloud services).",
+      long_description_content_type='text/markdown',
+      long_description=read('routeviews_google_upload/README.md'),
       author='University of Oregon',
       author_email='rleonar7@uoregon.edu',
       url='https://github.com/morrowc/rv',
@@ -34,6 +35,7 @@ setup(name="routeviews-google-upload",
       scripts=['routeviews_google_upload/routeviews-google-upload'],
       install_requires=install_requires,
       setup_requires=install_requires,
+
       classifiers=[
           'Development Status :: 3 - Alpha',
           # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
