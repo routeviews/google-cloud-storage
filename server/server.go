@@ -58,12 +58,16 @@ func newRV(key string, bucket string) (RV, error) {
 	}, nil
 }
 
+func (r RV) convertContent(ctx context.Context, c []byte) (interface{}, error) {
+	return nil, nil
+}
+
 // Store the RouteViews file to cloud storage,
 // optionally parse to bigquery format and add to the existing dataset.
 func (r RV) handleRV(ctx context.Context, resp *pb.FileResponse, fn string, convert bool, c []byte) (*pb.FileResponse, error) {
 	// Convert the content and send into BQ, possibly.
 	if convert {
-		if err := convertContent(content); err != nil {
+		if err := r.convertContent(ctx, c); err != nil {
 			return resp, err
 		}
 	}
@@ -124,7 +128,7 @@ func (r RV) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.FileRespon
 	switch {
 	case proj == pb.FileRequest_ROUTEVIEWS:
 		// RV files may need to be parsed to bigquery as well as simply stored.
-		return r.handleRV(ctx, resp, fn, resp.GetConvertSql(), content)
+		return r.handleRV(ctx, resp, fn, req.GetConvertSql(), content)
 	case proj == pb.FileRequest_RIPE_RIS:
 	case proj == pb.FileRequest_RPKI_RARC:
 		// Simply store the file.
