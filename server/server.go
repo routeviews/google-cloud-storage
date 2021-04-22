@@ -58,8 +58,8 @@ func newRV(key string, bucket string) (RV, error) {
 	}, nil
 }
 
-func (r RV) convertContent(ctx context.Context, c []byte) (interface{}, error) {
-	return nil, nil
+func (r RV) convertContent(ctx context.Context, c []byte) error {
+	return nil
 }
 
 // Store the RouteViews file to cloud storage,
