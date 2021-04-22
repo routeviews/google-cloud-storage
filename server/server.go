@@ -58,7 +58,26 @@ func newRV(key string, bucket string) (RV, error) {
 	}, nil
 }
 
-// Store the file to cloud storage.
+// Store the RouteViews file to cloud storage,
+// optionally parse to bigquery format and add to the existing dataset.
+func (r RV) handleRV(ctx context.Context, resp *pb.FileResponse, fn string, convert bool, c []byte) (*pb.FileResponse, error) {
+	// Convert the content and send into BQ, possibly.
+	if convert {
+		if err := convertContent(content); err != nil {
+			return resp, err
+		}
+	}
+	// Store the file content to the
+	wc := r.cs.Bucket(r.bucket).Object(fn).NewWriter(ctx)
+	if _, err := io.Copy(wc, bytes.NewReader(c)); err != nil {
+		resp.Status = pb.FileResponse_FAIL
+		return resp, fmt.Errorf("failed copying content to destination: %s/%s: %v", r.bucket, fn, err)
+	}
+	resp.Status = pb.FileResponse_SUCCESS
+	return resp, nil
+}
+
+// Store the RPKI/RARC file to cloud storage.
 func (r RV) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
 	// Store the file content to the
 	wc := r.cs.Bucket(r.bucket).Object(fn).NewWriter(ctx)
@@ -82,6 +101,8 @@ func (r RV) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string
 func (r RV) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.FileResponse, error) {
 	resp := &pb.FileResponse{}
 
+	// TODO(morrowc): Validate that the filename is appropriate for the project proposed.
+	//                Do not permit TV to overwrite RIPE, etc.
 	fn := req.GetFilename()
 	content := req.GetContent()
 	proj := req.GetProject()
@@ -102,6 +123,8 @@ func (r RV) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.FileRespon
 	// Process the content based upon project requirements.
 	switch {
 	case proj == pb.FileRequest_ROUTEVIEWS:
+		// RV files may need to be parsed to bigquery as well as simply stored.
+		return r.handleRV(ctx, resp, fn, resp.GetConvertSql(), content)
 	case proj == pb.FileRequest_RIPE_RIS:
 	case proj == pb.FileRequest_RPKI_RARC:
 		// Simply store the file.
