@@ -95,11 +95,12 @@ This couples nicely with the CICD scheme described above.
 It is useful to leverage a "GitHub Branch protection rule" to help enforce our GitHub Flow.
 The following are some 'protection rules' that we have turned on for this project's repository:
 
- * *Require pull request reviews before merging* 
+ * *Require pull request reviews before merging:* `checked`
    * *Required approving reviews:* 1
-* *Require status checks to pass before merging*
-  * *Require branches to be up to date before merging*
-* *Restrict who can push to matching branches*
+   * *Require review from Code Owners:* `checked` 
+* *Require status checks to pass before merging:* `checked`
+  * *Require branches to be up to date before merging:* `checked`
+* *Restrict who can push to matching branches:* `checked`
 
 ## Jenkins Jobs
 
