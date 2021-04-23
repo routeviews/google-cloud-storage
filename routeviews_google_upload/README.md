@@ -3,7 +3,7 @@
 [![PyPI version](https://badge.fury.io/py/routeviews-google-upload.svg)](https://badge.fury.io/py/routeviews-google-upload)
 
 This project provides a (Python) client that takes a file and sends it to the Google Cloud 
-Storage solution for [the Google+RouteViews project](https://github.com/morrowc/rv).
+Storage solution for [the Google+RouteViews project](https://github.com/routeviews/google-cloud-storage).
 
 ## Installation and Usage
 
@@ -91,11 +91,15 @@ PyPI.
 We follow the [GitHub Git Flow](https://guides.github.com/introduction/flow/) for this project.
 This couples nicely with the CICD scheme described above.
 
-> ### Recommended GitHub Repository Settings
-> It would be good to have a "GitHub Branch protection rule" in place to help enforce our GitHub Flow.
-The following are some 'protection rules' that we might want to consider
-> * Any changes to `main` branch must go through a pull request.
-> * Any pull request requires 1+ approval.
+### Recommended GitHub Repository Settings
+It is useful to leverage a "GitHub Branch protection rule" to help enforce our GitHub Flow.
+The following are some 'protection rules' that we have turned on for this project's repository:
+
+ * *Require pull request reviews before merging* 
+   * *Required approving reviews:* 1
+* *Require status checks to pass before merging*
+  * *Require branches to be up to date before merging*
+* *Restrict who can push to matching branches*
 
 ## Jenkins Jobs
 
