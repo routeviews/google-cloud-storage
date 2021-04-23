@@ -4,7 +4,7 @@
 syntax = "proto3";
 package rv.proto;
 
-option go_package = "github.com/morrowc/rv/proto/rv";
+option go_package = "github.com/routeviews/google-cloud-storage/proto/rv";
 
 // RV Service definition.
 service RV {
