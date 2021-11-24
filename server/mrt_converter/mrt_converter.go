@@ -2,13 +2,17 @@ package converter
 
 import (
 	"bytes"
+	"compress/bzip2"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"cloud.google.com/go/storage"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/packet/mrt"
 	log "github.com/sirupsen/logrus"
@@ -168,5 +172,30 @@ func convert(collector string, src []byte, dst io.Writer, bzip2Reader bzReaderFu
 			return fmt.Errorf("writer.Write: %v", err)
 		}
 	}
+	return nil
+}
+
+// ProcessMRTArchive converts an MRT dump into updates on GCS, which will later
+// be picked up by BigQuery automatically. ProcessMRTDump only supports dumps
+// of updates.
+func ProcessMRTArchive(ctx context.Context, gcsCli *storage.Client, filename, bucket string, content []byte) error {
+	return processMRTArchive(ctx, gcsCli, filename, bucket, content, bzip2.NewReader)
+}
+
+func processMRTArchive(ctx context.Context, gcsCli *storage.Client, filename, bucket string, content []byte, br bzReaderFunc) error {
+	outObject := strings.Replace(filename, filepath.Ext(filename), ".gz", 1)
+	dst := gcsCli.Bucket(bucket).Object(outObject).NewWriter(ctx)
+	defer dst.Close()
+
+	collector, err := extractCollector(filename)
+	if err != nil {
+		return fmt.Errorf("extractCollector(%s): %v", filename, err)
+	}
+	err = convert(collector, content, dst, br)
+	if err != nil {
+		return fmt.Errorf("parser.ParseUpdateMRT: %v", err)
+	}
+
+	log.WithFields(log.Fields{"bucket": bucket, "path": outObject}).Info("Update dump converted")
 	return nil
 }
