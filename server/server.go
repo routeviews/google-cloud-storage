@@ -37,21 +37,21 @@ var (
 	// TODO(morrowc): find a method to define the TLS certificate to be used.
 )
 
-type RV struct {
+type rvServer struct {
 	apiKey string
 	bucket string
 	sc     *storage.Client
 	rv.UnimplementedRVServer
 }
 
-// newRV creates and returns a proper RV object.
-func newRV(key string, bucket string) (RV, error) {
+// newRVServer creates and returns a proper RV object.
+func newRVServer(key string, bucket string) (rvServer, error) {
 	c, err := storage.NewClient(context.Background())
 	if err != nil {
-		return RV{}, fmt.Errorf("failed to create storage client: %v", err)
+		return rvServer{}, fmt.Errorf("failed to create storage client: %v", err)
 	}
 
-	return RV{
+	return rvServer{
 		apiKey: key,
 		bucket: bucket,
 		sc:     c,
@@ -59,7 +59,7 @@ func newRV(key string, bucket string) (RV, error) {
 }
 
 // Store the file to cloud storage.
-func (r RV) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
+func (r rvServer) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
 	// Store the file content to the
 	wc := r.sc.Bucket(r.bucket).Object(fn).NewWriter(ctx)
 	if _, err := io.Copy(wc, bytes.NewReader(c)); err != nil {
@@ -79,7 +79,7 @@ func (r RV) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string
 //
 // If any of these is missing the requset is invalid.
 //
-func (r RV) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.FileResponse, error) {
+func (r rvServer) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.FileResponse, error) {
 	resp := &pb.FileResponse{}
 
 	fn := req.GetFilename()
@@ -126,7 +126,7 @@ func main() {
 		log.Fatalf("failed to listen(): %v", err)
 	}
 
-	r, err := newRV(*apiKey, *bucket)
+	r, err := newRVServer(*apiKey, *bucket)
 	s := grpc.NewServer()
 	pb.RegisterRVServer(s, r)
 
