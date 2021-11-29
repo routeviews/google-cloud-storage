@@ -37,6 +37,13 @@ var (
 	// TODO(morrowc): find a method to define the TLS certificate to be used.
 )
 
+// rvIntf contains methods to interact with external dependencies.
+// This will be used for testing, to mock calls to external services (ie: cloud storage).
+type rvIntf interface {
+	FileStore(ctx context.Context, fn string, b []byte) error
+	CreateClient(ctx context.Context) (*storage.Client, error)
+}
+
 type rvServer struct {
 	apiKey string
 	bucket string
@@ -44,27 +51,36 @@ type rvServer struct {
 	rv.UnimplementedRVServer
 }
 
-// newRVServer creates and returns a proper RV object.
-func newRVServer(key string, bucket string) (rvServer, error) {
+func (r rvServer) CreateClient(ctx context.Context) (*storage.Client, error) {
 	c, err := storage.NewClient(context.Background())
 	if err != nil {
-		return rvServer{}, fmt.Errorf("failed to create storage client: %v", err)
+		return nil, fmt.Errorf("failed to create storage client: %v", err)
 	}
+	return c, nil
+}
 
+func (r rvServer) FileStore(ctx context.Context, fn string, b []byte) error {
+	// Store the file content to the
+	wc := r.sc.Bucket(r.bucket).Object(fn).NewWriter(ctx)
+	if _, err := io.Copy(wc, bytes.NewReader(b)); err != nil {
+		return fmt.Errorf("failed copying content to destination: %s/%s: %v", r.bucket, fn, err)
+	}
+	return nil
+}
+
+// newRVServer creates and returns a proper RV object.
+func newRVServer(key string, bucket string) (rvServer, error) {
 	return rvServer{
 		apiKey: key,
 		bucket: bucket,
-		sc:     c,
 	}, nil
 }
 
-// Store the file to cloud storage.
+// Store a RARC RPKI file to cloud storage.
 func (r rvServer) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
-	// Store the file content to the
-	wc := r.sc.Bucket(r.bucket).Object(fn).NewWriter(ctx)
-	if _, err := io.Copy(wc, bytes.NewReader(c)); err != nil {
+	if err := r.FileStore(ctx, fn, c); err != nil {
 		resp.Status = pb.FileResponse_FAIL
-		return resp, fmt.Errorf("failed copying content to destination: %s/%s: %v", r.bucket, fn, err)
+		return resp, err
 	}
 	resp.Status = pb.FileResponse_SUCCESS
 	return resp, nil
@@ -127,6 +143,14 @@ func main() {
 	}
 
 	r, err := newRVServer(*apiKey, *bucket)
+	if err != nil {
+		log.Fatalf("failed to create new rvServer: %v", err)
+	}
+	c, err := r.CreateClient(context.Background())
+	if err != nil {
+		log.Fatalf("failed to create storage client: %v", err)
+	}
+	r.sc = c
 	s := grpc.NewServer()
 	pb.RegisterRVServer(s, r)
 
