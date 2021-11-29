@@ -40,7 +40,7 @@ var (
 type RV struct {
 	apiKey string
 	bucket string
-	cs     *storage.Client
+	sc     *storage.Client
 	rv.UnimplementedRVServer
 }
 
@@ -54,14 +54,14 @@ func newRV(key string, bucket string) (RV, error) {
 	return RV{
 		apiKey: key,
 		bucket: bucket,
-		cs:     c,
+		sc:     c,
 	}, nil
 }
 
 // Store the file to cloud storage.
 func (r RV) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
 	// Store the file content to the
-	wc := r.cs.Bucket(r.bucket).Object(fn).NewWriter(ctx)
+	wc := r.sc.Bucket(r.bucket).Object(fn).NewWriter(ctx)
 	if _, err := io.Copy(wc, bytes.NewReader(c)); err != nil {
 		resp.Status = pb.FileResponse_FAIL
 		return resp, fmt.Errorf("failed copying content to destination: %s/%s: %v", r.bucket, fn, err)
