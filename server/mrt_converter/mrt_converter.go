@@ -24,8 +24,8 @@ type update struct {
 	PeerAS    uint32
 
 	// Data inside BGP updates.
-	Announced  []*bgp.IPAddrPrefix
-	Withdrawn  []*bgp.IPAddrPrefix
+	Announced  []string
+	Withdrawn  []string
 	Attributes []*attributePayload
 }
 
@@ -66,6 +66,14 @@ func translateAttrs(attrs []bgp.PathAttributeInterface) []*attributePayload {
 	return res
 }
 
+func translatePrefixes(prefixes []*bgp.IPAddrPrefix) []string {
+	var res []string
+	for _, p := range prefixes {
+		res = append(res, p.String())
+	}
+	return res
+}
+
 // parseUpdate converts a pair of MRT header and message into a BigQuery
 // compatible update. A BGP4MP_ET message will be treated as a BGP4MP message,
 // and the microsecond field will be ignored.
@@ -91,22 +99,14 @@ func parseUpdate(collector string, h *mrt.MRTHeader, buf []byte) (*update, error
 
 	mrtMsg := msg.Body.(*mrt.BGP4MPMessage)
 	bgpUpdate := mrtMsg.BGPMessage.Body.(*bgp.BGPUpdate)
-	announced := bgpUpdate.NLRI
-	if len(announced) == 0 {
-		announced = nil
-	}
-	withdrawn := bgpUpdate.WithdrawnRoutes
-	if len(withdrawn) == 0 {
-		withdrawn = nil
-	}
 
 	return &update{
 		SeenAt:    h.GetTime(),
 		PeerAS:    mrtMsg.PeerAS,
 		Collector: collector,
 
-		Announced:  announced,
-		Withdrawn:  withdrawn,
+		Announced:  translatePrefixes(bgpUpdate.NLRI),
+		Withdrawn:  translatePrefixes(bgpUpdate.WithdrawnRoutes),
 		Attributes: translateAttrs(bgpUpdate.PathAttributes),
 	}, nil
 }

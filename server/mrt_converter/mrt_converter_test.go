@@ -104,11 +104,10 @@ func TestParseUpdate(t *testing.T) {
 			header:    fakeMRTHeader(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, len(encodeBGP4MP(t, fakeAS4Ann))),
 			body:      encodeBGP4MP(t, fakeAS4Ann),
 			want: &update{
-				Collector: "route-views3",
-				SeenAt:    fakeTime,
-				PeerAS:    100000, // 4-octet ASN as peer.
-				Announced: []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.0.0.0"),
-					bgp.NewIPAddrPrefix(24, "20.0.0.0")},
+				Collector:  "route-views3",
+				SeenAt:     fakeTime,
+				PeerAS:     100000, // 4-octet ASN as peer.
+				Announced:  []string{"10.0.0.0/24", "20.0.0.0/24"},
 				Attributes: []*attributePayload{fourOctetASPath},
 			},
 		},
@@ -118,11 +117,10 @@ func TestParseUpdate(t *testing.T) {
 			header:    fakeMRTHeader(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE, len(encodeBGP4MP(t, fakeAnn))),
 			body:      encodeBGP4MP(t, fakeAnn),
 			want: &update{
-				Collector: "route-views3",
-				SeenAt:    fakeTime,
-				PeerAS:    15169,
-				Announced: []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "30.0.0.0"),
-					bgp.NewIPAddrPrefix(24, "40.0.0.0")},
+				Collector:  "route-views3",
+				SeenAt:     fakeTime,
+				PeerAS:     15169,
+				Announced:  []string{"30.0.0.0/24", "40.0.0.0/24"},
 				Attributes: []*attributePayload{twoOctetAS4Path, twoOctetASPath},
 			},
 		},
@@ -132,11 +130,10 @@ func TestParseUpdate(t *testing.T) {
 			header:    fakeMRTHeader(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, len(encodeBGP4MP(t, fakeAS4Withdrawal))),
 			body:      encodeBGP4MP(t, fakeAS4Withdrawal),
 			want: &update{
-				Collector: "route-views3",
-				SeenAt:    fakeTime,
-				PeerAS:    100000,
-				Withdrawn: []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "30.0.0.0"),
-					bgp.NewIPAddrPrefix(24, "40.0.0.0")},
+				Collector:  "route-views3",
+				SeenAt:     fakeTime,
+				PeerAS:     100000,
+				Withdrawn:  []string{"30.0.0.0/24", "40.0.0.0/24"},
 				Attributes: nil,
 			},
 		},
@@ -147,11 +144,10 @@ func TestParseUpdate(t *testing.T) {
 			// Add fake microseconds for extened timestamp field.
 			body: append([]byte{1, 2, 3, 4}, encodeBGP4MP(t, fakeAS4Ann)...),
 			want: &update{
-				Collector: "route-views3",
-				SeenAt:    fakeTime,
-				PeerAS:    100000, // 4-octet ASN as peer.
-				Announced: []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.0.0.0"),
-					bgp.NewIPAddrPrefix(24, "20.0.0.0")},
+				Collector:  "route-views3",
+				SeenAt:     fakeTime,
+				PeerAS:     100000, // 4-octet ASN as peer.
+				Announced:  []string{"10.0.0.0/24", "20.0.0.0/24"},
 				Attributes: []*attributePayload{fourOctetASPath},
 			},
 		},
