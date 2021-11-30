@@ -18,6 +18,8 @@ type attributePayload struct {
 	Payload  string
 }
 
+// update represents a MRT message with a BGP update. It will be written as
+// JSON, which will then be picked up by BigQuery.
 type update struct {
 	Collector string
 	SeenAt    time.Time
@@ -30,22 +32,24 @@ type update struct {
 }
 
 // extractCollector extracts the collector name from the input file path.
+// The path is assumed to be a GCS object (i.e. not started with '/').
 func extractCollector(filename string) (string, error) {
 	if filename == "" {
 		return "", fmt.Errorf("empty file path")
 	}
-	if filename[0] != '/' {
-		return "", fmt.Errorf("path must starts with '/'")
+
+	if filename[0] == '/' {
+		return "", fmt.Errorf("path should not start with '/'")
 	}
+	// TODO: Handle other object filenames when we import other sources.
 	if !strings.Contains(filename, "bgpdata") {
 		return "", fmt.Errorf("file %s is not a valid RouteViews archive path", filename)
 	}
-
 	dirs := strings.Split(filename, "/")
-	if dirs[1] == "bgpdata" {
+	if dirs[0] == "bgpdata" {
 		return "route-views2", nil
 	}
-	return dirs[1], nil
+	return dirs[0], nil
 }
 
 func translateAttrs(attrs []bgp.PathAttributeInterface) []*attributePayload {
@@ -99,12 +103,10 @@ func parseUpdate(collector string, h *mrt.MRTHeader, buf []byte) (*update, error
 
 	mrtMsg := msg.Body.(*mrt.BGP4MPMessage)
 	bgpUpdate := mrtMsg.BGPMessage.Body.(*bgp.BGPUpdate)
-
 	return &update{
-		SeenAt:    h.GetTime(),
-		PeerAS:    mrtMsg.PeerAS,
-		Collector: collector,
-
+		SeenAt:     h.GetTime(),
+		PeerAS:     mrtMsg.PeerAS,
+		Collector:  collector,
 		Announced:  translatePrefixes(bgpUpdate.NLRI),
 		Withdrawn:  translatePrefixes(bgpUpdate.WithdrawnRoutes),
 		Attributes: translateAttrs(bgpUpdate.PathAttributes),

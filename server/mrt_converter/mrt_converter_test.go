@@ -2,6 +2,7 @@ package converter
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,12 +196,12 @@ func TestExtractCollector(t *testing.T) {
 	}{
 		{
 			desc: "route-views2 archive",
-			path: "/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
+			path: "bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
 			want: "route-views2",
 		},
 		{
 			desc: "non route-views2 archive",
-			path: "/route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
+			path: "route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
 			want: "route-views.sg",
 		},
 		{
@@ -209,18 +210,19 @@ func TestExtractCollector(t *testing.T) {
 		},
 		{
 			desc:    "bad file path - invalid RouteViews path",
-			path:    "/route-views.sg/2021.11/UPDATES/updates.20211101.0000.bz2",
+			path:    "route-views.sg/2021.11/UPDATES/updates.20211101.0000.bz2",
 			wantErr: true,
 		},
 		{
-			desc:    "bad file path - missing preceding slash",
-			path:    "route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
+			desc:    "bad file path - preceding slash",
+			path:    "/route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
 			wantErr: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			got, err := extractCollector(test.path)
+			t.Log(strings.Split(test.path, "/"))
 			if gotErr := err != nil; test.wantErr != gotErr || got != test.want {
 				t.Errorf("extractCollector(%s) = '%s', %v; want '%s', wantErr = %v", test.path, got, err, test.want, test.wantErr)
 			}
