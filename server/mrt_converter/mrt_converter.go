@@ -99,7 +99,6 @@ func parseUpdate(collector string, h *mrt.MRTHeader, buf []byte) (*update, error
 
 	mrtMsg := msg.Body.(*mrt.BGP4MPMessage)
 	bgpUpdate := mrtMsg.BGPMessage.Body.(*bgp.BGPUpdate)
-
 	return &update{
 		SeenAt:    h.GetTime(),
 		PeerAS:    mrtMsg.PeerAS,
