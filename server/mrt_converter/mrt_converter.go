@@ -99,7 +99,6 @@ func parseUpdate(collector string, h *mrt.MRTHeader, buf []byte) (*update, error
 	if len(withdrawn) == 0 {
 		withdrawn = nil
 	}
-
 	return &update{
 		SeenAt:    h.GetTime(),
 		PeerAS:    mrtMsg.PeerAS,
