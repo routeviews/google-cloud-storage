@@ -38,7 +38,7 @@ func extractCollector(filename string) (string, error) {
 		return "", fmt.Errorf("empty file path")
 	}
 
-	if strings.HasPrefix(filename, '/') {
+	if strings.HasPrefix(filename, "/") {
 		return "", fmt.Errorf("path should not start with '/'")
 	}
 	// TODO: Handle other object filenames when we import other sources.
