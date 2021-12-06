@@ -175,6 +175,20 @@ func convert(collector string, src []byte, dst io.Writer, bzip2Reader bzReaderFu
 	return nil
 }
 
+// convertedExists checks if a converted archive already exists at the
+// destination.
+func convertedExists(ctx context.Context, gcsCli *storage.Client, object, bucket string) (bool, error) {
+	r, err := gcsCli.Bucket(bucket).Object(object).NewReader(ctx)
+	if err != nil {
+		if err == storage.ErrObjectNotExist {
+			return false, nil
+		}
+		return false, fmt.Errorf("gs://%s/%s is not found", bucket, object)
+	}
+	defer r.Close()
+	return true, nil
+}
+
 // ProcessMRTArchive converts an MRT dump into updates on GCS, which will later
 // be picked up by BigQuery automatically. ProcessMRTDump only supports dumps
 // of updates.
@@ -183,19 +197,31 @@ func ProcessMRTArchive(ctx context.Context, gcsCli *storage.Client, filename, bu
 }
 
 func processMRTArchive(ctx context.Context, gcsCli *storage.Client, filename, bucket string, content []byte, br bzReaderFunc) error {
+	if len(content) == 0 {
+		return fmt.Errorf("gs://%s/%s: content length is zero", bucket, filename)
+	}
 	outObject := strings.Replace(filename, filepath.Ext(filename), ".gz", 1)
-	dst := gcsCli.Bucket(bucket).Object(outObject).NewWriter(ctx)
-	defer dst.Close()
+	if found, err := convertedExists(ctx, gcsCli, outObject, bucket); err != nil {
+		return fmt.Errorf("convertedExists: %v", err)
+	} else if found {
+		log.Warnf("converted archive gs://%s/%s already exists.", bucket, outObject)
+		return nil
+	}
 
 	collector, err := extractCollector(filename)
 	if err != nil {
 		return fmt.Errorf("extractCollector(%s): %v", filename, err)
 	}
-	err = convert(collector, content, dst, br)
+
+	buf := bytes.NewBuffer(nil)
+	err = convert(collector, content, buf, br)
 	if err != nil {
 		return fmt.Errorf("parser.ParseUpdateMRT: %v", err)
 	}
 
-	log.WithFields(log.Fields{"bucket": bucket, "path": outObject}).Info("Update dump converted")
+	// Only write messages if the whole conversion is done.
+	dst := gcsCli.Bucket(bucket).Object(outObject).NewWriter(ctx)
+	dst.Write(buf.Bytes())
+	defer dst.Close()
 	return nil
 }

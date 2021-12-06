@@ -17,7 +17,7 @@ import (
 	"github.com/osrg/gobgp/pkg/packet/mrt"
 	log "github.com/sirupsen/logrus"
 
-	fakegcs "server/server.go/server/testing"
+	"github.com/fsouza/fake-gcs-server/fakestorage"
 )
 
 // Fake MRT BGP4MP messages.
@@ -72,8 +72,6 @@ var (
 			{Type: bgp.BGP_ASPATH_ATTR_TYPE_SEQ, Num: 1, AS: []uint32{100000}}})),
 	}
 )
-
-const gcsUploadAPI = "/upload/storage/v1/b/%s/o"
 
 func encodeMRTMessage(t *testing.T, msg *mrt.MRTMessage) []byte {
 	t.Helper()
@@ -489,15 +487,19 @@ func TestConvertMRTErrors(t *testing.T) {
 func TestProcessMRTArchive(t *testing.T) {
 	ctx := context.Background()
 
-	interceptor := &fakegcs.WriteInterceptor{}
-	fakeCli := fakegcs.SetupFakeGCS(ctx, t, interceptor.Handler)
+	bucket := "test-bucket"
+	fakegcs := fakestorage.NewServer(nil)
+	fakegcs.CreateBucketWithOpts(fakestorage.CreateBucketOpts{
+		Name: bucket,
+	})
+	t.Cleanup(fakegcs.Stop)
+	fakeCli := fakegcs.Client()
 
 	fakeTime := time.Unix(time.Now().Unix(), 0)
 	// GCS uses multipart HTTP messages to upload data; the first part contains
 	// metadata, and the second part contains object data.
 	object := "bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2"
 	wantObject := "bgpdata/2021.11/UPDATES/updates.20211101.0000.gz"
-	bucket := "test-bucket"
 	err := processMRTArchive(ctx, fakeCli, object, "test-bucket",
 		encodeMRTMessage(t, fakeMRTMessage(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, fakeAS4Ann)),
 		fakeBzip)
@@ -512,15 +514,31 @@ func TestProcessMRTArchive(t *testing.T) {
 		Attributes: []*attributePayload{fourOctetASPath},
 	}}
 
-	got := decompressed(t, bytes.NewBuffer(interceptor.Content))
-	want := makeResponse(t, wantUpdates)
-	if string(want) != string(got) {
-		t.Errorf("ProcessMRTArchive() outputs mismatched:\nwant: %s\ngot: %s", string(want), string(got))
-	}
-	if wantPath := fmt.Sprintf(gcsUploadAPI, bucket); wantObject != interceptor.Object || wantPath != interceptor.Path {
-		t.Errorf("ProcessMRTArchive() wrote to %s, %s; want %s, %s", interceptor.Path, interceptor.Object, wantPath, wantObject)
+	// Check if converted archive is expected.
+	gotObj, err := fakegcs.GetObject(bucket, wantObject)
+	if err != nil {
+		t.Fatalf("fakegcs.GetObject(%s, %s): %v", bucket, wantObject, err)
 	}
 
+	want := makeResponse(t, wantUpdates)
+	if got := decompressed(t, bytes.NewBuffer(gotObj.Content)); string(want) != string(got) {
+		t.Errorf("ProcessMRTArchive() outputs mismatched:\nwant: %s\ngot: %s", string(want), string(got))
+	}
+
+	// Converted archive already exists; conversion should be skipped.
+	err = processMRTArchive(ctx, fakeCli, object, "test-bucket",
+		encodeMRTMessage(t, fakeMRTMessage(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, fakeAS4Withdrawal)),
+		fakeBzip)
+	if err != nil {
+		t.Errorf("processMRTArchive: %v; want nil err", err)
+	}
+	gotObj, err = fakegcs.GetObject(bucket, wantObject)
+	if err != nil {
+		t.Fatalf("fakegcs.GetObject(%s, %s): %v", bucket, wantObject, err)
+	}
+	if got := decompressed(t, bytes.NewBuffer(gotObj.Content)); string(want) != string(got) {
+		t.Errorf("ProcessMRTArchive() outputs mismatched:\nwant: %s\ngot: %s", string(want), string(got))
+	}
 }
 
 func TestProcessMRTArchiveErrors(t *testing.T) {
@@ -532,6 +550,7 @@ func TestProcessMRTArchiveErrors(t *testing.T) {
 		{
 			desc:     "bad filename",
 			filename: "/routeviews",
+			content:  encodeMRTMessage(t, fakeMRTMessage(t, time.Now(), mrt.BGP4MP_ET, mrt.MESSAGE_AS4, fakeAS4Withdrawal)),
 		},
 		{
 			desc:     "bad content",
@@ -543,8 +562,12 @@ func TestProcessMRTArchiveErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx := context.Background()
-			fakeCli := fakegcs.SetupFakeGCS(ctx, t, (&fakegcs.WriteInterceptor{}).Handler)
-			err := processMRTArchive(ctx, fakeCli, test.filename, "test_bucket", test.content, fakeBzip)
+			fakegcs := fakestorage.NewServer(nil)
+			fakegcs.CreateBucketWithOpts(fakestorage.CreateBucketOpts{
+				Name: "test_bucket",
+			})
+			t.Cleanup(fakegcs.Stop)
+			err := processMRTArchive(ctx, fakegcs.Client(), test.filename, "test_bucket", test.content, fakeBzip)
 			if err == nil {
 				t.Error("ProcessMRTArchive() = nil err; want non-nil err")
 			}
