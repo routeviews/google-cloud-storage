@@ -3,6 +3,7 @@ package converter
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,8 @@ import (
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/packet/mrt"
 	log "github.com/sirupsen/logrus"
+
+	fakegcs "server/server.go/server/testing"
 )
 
 // Fake MRT BGP4MP messages.
@@ -69,6 +72,8 @@ var (
 			{Type: bgp.BGP_ASPATH_ATTR_TYPE_SEQ, Num: 1, AS: []uint32{100000}}})),
 	}
 )
+
+const gcsUploadAPI = "/upload/storage/v1/b/%s/o"
 
 func encodeMRTMessage(t *testing.T, msg *mrt.MRTMessage) []byte {
 	t.Helper()
@@ -277,6 +282,32 @@ func concatMsgs(msgs ...[]byte) []byte {
 	return res
 }
 
+func decompressed(t *testing.T, src io.Reader) []byte {
+	t.Helper()
+	r, err := gzip.NewReader(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
+}
+
+func makeResponse(t *testing.T, updates []*update) []byte {
+	t.Helper()
+	var res []byte
+	for _, u := range updates {
+		updateJSON, err := json.Marshal(u)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res = append(res, append(updateJSON, '\n')...)
+	}
+	return res
+}
+
 func TestConvertMRT(t *testing.T) {
 	fakeTime := time.Now()
 	unextended := time.Unix(fakeTime.Unix(), 0)
@@ -416,8 +447,8 @@ func TestConvertMRT(t *testing.T) {
 			// ignoreBzip will disable bzip2 decompression in tests. Golang doesn't have a
 			// bzip2 encoder, and it will be difficult to create test data compressed by
 			// bzip2, so we disable bzip2 in tests.
-			dst := bytes.NewBuffer(nil)
-			err := convert(test.collector, test.archive, dst, fakeBzip)
+			buf := bytes.NewBuffer(nil)
+			err := convert(test.collector, test.archive, buf, fakeBzip)
 			if gotErr := err != nil; test.wantErr != gotErr {
 				t.Errorf("convert() = err %v; wantErr = %v", err, test.wantErr)
 			}
@@ -427,23 +458,8 @@ func TestConvertMRT(t *testing.T) {
 			}
 
 			// Decompress written data.
-			r, err := gzip.NewReader(dst)
-			if err != nil {
-				t.Fatal(err)
-			}
-			got, err := ioutil.ReadAll(r)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			var want []byte
-			for _, u := range test.want {
-				updateJSON, err := json.Marshal(u)
-				if err != nil {
-					t.Fatal(err)
-				}
-				want = append(want, append(updateJSON, '\n')...)
-			}
+			got := decompressed(t, buf)
+			want := makeResponse(t, test.want)
 			if string(want) != string(got) {
 				t.Errorf("convert() outputs mismatched:\nwant: %s\ngot: %s", string(want), string(got))
 			}
@@ -468,4 +484,70 @@ func TestConvertMRTErrors(t *testing.T) {
 			t.Error("convert() => nil err; want non-nil err")
 		}
 	})
+}
+
+func TestProcessMRTArchive(t *testing.T) {
+	ctx := context.Background()
+
+	interceptor := &fakegcs.WriteInterceptor{}
+	fakeCli := fakegcs.SetupFakeGCS(ctx, t, interceptor.Handler)
+
+	fakeTime := time.Unix(time.Now().Unix(), 0)
+	// GCS uses multipart HTTP messages to upload data; the first part contains
+	// metadata, and the second part contains object data.
+	object := "bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2"
+	wantObject := "bgpdata/2021.11/UPDATES/updates.20211101.0000.gz"
+	bucket := "test-bucket"
+	err := processMRTArchive(ctx, fakeCli, object, "test-bucket",
+		encodeMRTMessage(t, fakeMRTMessage(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, fakeAS4Ann)),
+		fakeBzip)
+	if err != nil {
+		t.Error(err)
+	}
+	wantUpdates := []*update{{
+		Collector:  "route-views2",
+		SeenAt:     fakeTime,
+		PeerAS:     100000,
+		Announced:  []string{"10.0.0.0/24", "20.0.0.0/24"},
+		Attributes: []*attributePayload{fourOctetASPath},
+	}}
+
+	got := decompressed(t, bytes.NewBuffer(interceptor.Content))
+	want := makeResponse(t, wantUpdates)
+	if string(want) != string(got) {
+		t.Errorf("ProcessMRTArchive() outputs mismatched:\nwant: %s\ngot: %s", string(want), string(got))
+	}
+	if wantPath := fmt.Sprintf(gcsUploadAPI, bucket); wantObject != interceptor.Object || wantPath != interceptor.Path {
+		t.Errorf("ProcessMRTArchive() wrote to %s, %s; want %s, %s", interceptor.Path, interceptor.Object, wantPath, wantObject)
+	}
+
+}
+
+func TestProcessMRTArchiveErrors(t *testing.T) {
+	tests := []struct {
+		desc     string
+		filename string
+		content  []byte
+	}{
+		{
+			desc:     "bad filename",
+			filename: "/routeviews",
+		},
+		{
+			desc:     "bad content",
+			filename: "route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
+			content:  encodeMRTMessage(t, fakeMRTMessage(t, time.Now(), mrt.BGP4MP_ET, mrt.MESSAGE_AS4, fakeAS4Withdrawal))[:10],
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			ctx := context.Background()
+			fakeCli := fakegcs.SetupFakeGCS(ctx, t, (&fakegcs.WriteInterceptor{}).Handler)
+			err := processMRTArchive(ctx, fakeCli, test.filename, "test_bucket", test.content, fakeBzip)
+			if err == nil {
+				t.Error("ProcessMRTArchive() = nil err; want non-nil err")
+			}
+		})
+	}
 }
