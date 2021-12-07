@@ -1,8 +1,11 @@
 package converter
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -111,4 +114,59 @@ func parseUpdate(collector string, h *mrt.MRTHeader, buf []byte) (*update, error
 		Withdrawn:  translatePrefixes(bgpUpdate.WithdrawnRoutes),
 		Attributes: translateAttrs(bgpUpdate.PathAttributes),
 	}, nil
+}
+
+type bzReaderFunc func(_ io.Reader) io.Reader
+
+// convert translates the bzip'ed MRT raw bytes into a BigQuery compatible
+// format and write to GCS.
+func convert(collector string, src []byte, dst io.Writer, bzip2Reader bzReaderFunc) error {
+	br := bzip2Reader(bytes.NewReader(src))
+	gw := gzip.NewWriter(dst)
+	defer gw.Close()
+
+	for {
+		buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
+		_, err := io.ReadFull(br, buf)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return fmt.Errorf("failed to read MRT header: %v", err)
+		}
+
+		h := &mrt.MRTHeader{}
+		err = h.DecodeFromBytes(buf)
+		if err != nil {
+			return fmt.Errorf("(*mrt.MRTHeader).DecodeFromBytes: %v", err)
+		}
+
+		buf = make([]byte, h.Len)
+		_, err = io.ReadFull(br, buf)
+		if err != nil {
+			return fmt.Errorf("failed to read MRT body: %v", err)
+		}
+
+		// We only parse updates at the moment.
+		if (h.Type != mrt.BGP4MP && h.Type != mrt.BGP4MP_ET) ||
+			(h.SubType != uint16(mrt.MESSAGE_AS4) && h.SubType != uint16(mrt.MESSAGE)) {
+			log.WithFields(log.Fields{"type": h.Type, "subType": h.SubType}).Warn("unsupported message types")
+			continue
+		}
+
+		update, err := parseUpdate(collector, h, buf)
+		if err != nil {
+			log.WithError(err).Warn("failed to parse update")
+			continue
+		}
+
+		b, err := json.Marshal(update)
+		if err != nil {
+			return fmt.Errorf("json.Marshal: %v", err)
+		}
+		// Write as JSONL.
+		if _, err := gw.Write(append(b, '\n')); err != nil {
+			return fmt.Errorf("writer.Write: %v", err)
+		}
+	}
+	return nil
 }
