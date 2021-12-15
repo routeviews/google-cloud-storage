@@ -5,7 +5,7 @@
 1.  Build the image from the root directory. (TODO: use docker-decompose.yaml)
     -   In root directory, `docker build -f cmd/converter/Dockerfile . -t
         [IMAGE_URL]`
-    -   Don't forget to upload it to the registries: `docker push -t
+    -   Don't forget to upload it to the registries: `docker push
         [IMAGE_URL]`
 2.  Deploy the image by setting the output bucket `BIGQUERY_BUCKET` for
     converted updates.

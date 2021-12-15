@@ -7,8 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	converter "server/server.go/server/mrt_converter"
 
+	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
 	log "github.com/sirupsen/logrus"
 
 	"cloud.google.com/go/storage"
