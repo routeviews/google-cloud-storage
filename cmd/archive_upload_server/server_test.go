@@ -13,18 +13,12 @@ import (
 // TestFileUpload tests a full file-upload process request.
 func TestFileUpload(t *testing.T) {
 	tests := []struct {
-		desc      string
-		req       *pb.FileRequest
-		bucket    string
-		want      *pb.FileResponse
-		fileErr   bool
-		clientErr bool
-		wantErr   bool
+		desc    string
+		req     *pb.FileRequest
+		bucket  string
+		want    *pb.FileResponse
+		wantErr bool
 	}{{
-		desc:      "Client Failure",
-		clientErr: true,
-		wantErr:   true,
-	}, {
 		desc:   "RARC: Failure - bad checksum",
 		bucket: "foo",
 		req: &pb.FileRequest{
