@@ -34,7 +34,6 @@ const (
 
 var (
 	port   = flag.Int("port", 9876, "Port on which gRPC connections will come.")
-	apiKey = flag.String("apikey", "", "API Key to use in cloud storage operations.")
 	bucket = flag.String("bucket", "archive-routeviews", "Cloud storage bucket name.")
 
 	// TODO(morrowc): find a method to define the TLS certificate to be used, if this will
@@ -42,7 +41,6 @@ var (
 )
 
 type rvServer struct {
-	apiKey string
 	bucket string
 	sc     *storage.Client
 	pb.UnimplementedRVServer
@@ -59,9 +57,8 @@ func (r rvServer) fileStore(ctx context.Context, fn string, b []byte) error {
 }
 
 // newRVServer creates and returns a proper RV object.
-func newRVServer(key string, bucket string, client *storage.Client) (rvServer, error) {
+func newRVServer(bucket string, client *storage.Client) (rvServer, error) {
 	return rvServer{
-		apiKey: key,
 		bucket: bucket,
 		sc:     client,
 	}, nil
@@ -121,11 +118,6 @@ func (r rvServer) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.File
 func main() {
 	flag.Parse()
 
-	// Validate that required flags are set.
-	if *apiKey == "" {
-		log.Fatal("apiKey must be defined")
-	}
-
 	// Start the listener.
 	// NOTE: this listens on all IP Addresses, caution when testing.
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
@@ -139,7 +131,7 @@ func main() {
 		log.Fatalf("failed to create storage client: %v", err)
 	}
 
-	r, err := newRVServer(*apiKey, *bucket, c)
+	r, err := newRVServer(*bucket, c)
 	if err != nil {
 		log.Fatalf("failed to create new rvServer: %v", err)
 	}
