@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log"
 
-	pb "github.com/morrowc/rv/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 	"google.golang.org/grpc"
 )
 

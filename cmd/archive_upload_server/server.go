@@ -1,6 +1,10 @@
 // Package main is the grpc server which accepts file storage requests,
+//
 // Files are stored in cloud-storage, they may be converted and added to
 // BigQuery tables as well, depending upon the request.
+//
+// NOTE: Currently (12/2021) all files are stored to GCS, the conversion process
+//       subscribes to a pubsub feed of buckets which are to be converted for BigQuery.
 package main
 
 import (
@@ -16,8 +20,7 @@ import (
 	"net"
 
 	"cloud.google.com/go/storage"
-	"github.com/morrowc/rv/proto/rv"
-	pb "github.com/morrowc/rv/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -34,37 +37,41 @@ var (
 	apiKey = flag.String("apikey", "", "API Key to use in cloud storage operations.")
 	bucket = flag.String("bucket", "archive-routeviews", "Cloud storage bucket name.")
 
-	// TODO(morrowc): find a method to define the TLS certificate to be used.
+	// TODO(morrowc): find a method to define the TLS certificate to be used, if this will
+	//                not be done through GCLB's inbound https path.
 )
 
-type RV struct {
+type rvServer struct {
 	apiKey string
 	bucket string
-	cs     *storage.Client
-	rv.UnimplementedRVServer
+	sc     *storage.Client
+	pb.UnimplementedRVServer
 }
 
-// newRV creates and returns a proper RV object.
-func newRV(key string, bucket string) (RV, error) {
-	c, err := storage.NewClient(context.Background())
-	if err != nil {
-		return RV{}, fmt.Errorf("failed to create storage client: %v", err)
+// fileStore stores a file ([]byte) to a designated bucket location (string).
+func (r rvServer) fileStore(ctx context.Context, fn string, b []byte) error {
+	// Store the file content to the
+	wc := r.sc.Bucket(r.bucket).Object(fn).NewWriter(ctx)
+	if _, err := io.Copy(wc, bytes.NewReader(b)); err != nil {
+		return fmt.Errorf("failed copying content to destination: %s/%s: %v", r.bucket, fn, err)
 	}
+	return nil
+}
 
-	return RV{
+// newRVServer creates and returns a proper RV object.
+func newRVServer(key string, bucket string, client *storage.Client) (rvServer, error) {
+	return rvServer{
 		apiKey: key,
 		bucket: bucket,
-		cs:     c,
+		sc:     client,
 	}, nil
 }
 
-// Store the file to cloud storage.
-func (r RV) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
-	// Store the file content to the
-	wc := r.cs.Bucket(r.bucket).Object(fn).NewWriter(ctx)
-	if _, err := io.Copy(wc, bytes.NewReader(c)); err != nil {
+// Store a RARC RPKI file to cloud storage.
+func (r rvServer) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
+	if err := r.fileStore(ctx, fn, c); err != nil {
 		resp.Status = pb.FileResponse_FAIL
-		return resp, fmt.Errorf("failed copying content to destination: %s/%s: %v", r.bucket, fn, err)
+		return resp, err
 	}
 	resp.Status = pb.FileResponse_SUCCESS
 	return resp, nil
@@ -79,7 +86,7 @@ func (r RV) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string
 //
 // If any of these is missing the requset is invalid.
 //
-func (r RV) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.FileResponse, error) {
+func (r rvServer) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.FileResponse, error) {
 	resp := &pb.FileResponse{}
 
 	fn := req.GetFilename()
@@ -126,7 +133,17 @@ func main() {
 		log.Fatalf("failed to listen(): %v", err)
 	}
 
-	r, err := newRV(*apiKey, *bucket)
+	// Create a storage client, to add to the RV Server.
+	c, err := storage.NewClient(context.Background())
+	if err != nil {
+		log.Fatalf("failed to create storage client: %v", err)
+	}
+
+	r, err := newRVServer(*apiKey, *bucket, c)
+	if err != nil {
+		log.Fatalf("failed to create new rvServer: %v", err)
+	}
+
 	s := grpc.NewServer()
 	pb.RegisterRVServer(s, r)
 
