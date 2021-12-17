@@ -47,7 +47,7 @@ func TestFileUpload(t *testing.T) {
 
 	ctx := context.Background()
 	for _, test := range tests {
-		fs, err := newRVServer("foo", test.bucket, fakestorage.NewServer(nil).Client())
+		fs, err := newRVServer(test.bucket, fakestorage.NewServer(nil).Client())
 		if err != nil {
 			t.Fatalf("[%v]: failed initialzing server: %v", test.desc, err)
 		}
