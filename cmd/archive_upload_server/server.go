@@ -16,10 +16,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
+	"os"
 
 	"cloud.google.com/go/storage"
+	log "github.com/golang/glog"
 	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -33,7 +34,7 @@ const (
 )
 
 var (
-	port   = flag.Int("port", 9876, "Port on which gRPC connections will come.")
+	port   = os.Getenv("PORT")
 	bucket = flag.String("bucket", "routeviews-archive", "Cloud storage bucket name.")
 
 	// TODO(morrowc): find a method to define the TLS certificate to be used, if this will
@@ -119,9 +120,13 @@ func (r rvServer) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.File
 func main() {
 	flag.Parse()
 
+	if port == "" {
+		port = "9876"
+		log.Infof("Default port selected: %s", port)
+	}
 	// Start the listener.
 	// NOTE: this listens on all IP Addresses, caution when testing.
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
 		log.Fatalf("failed to listen(): %v", err)
 	}
