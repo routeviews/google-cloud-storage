@@ -43,6 +43,20 @@ func TestFileUpload(t *testing.T) {
 			Status:       pb.FileResponse_SUCCESS,
 			ErrorMessage: "",
 		},
+	}, {
+		desc:   "Routeviews: Success",
+		bucket: "foo",
+		req: &pb.FileRequest{
+			Filename:   "bar",
+			Md5Sum:     "50e3903156f5d2dac6c9f89626d48c75",
+			Content:    []byte("Foo Bar Baz"),
+			ConvertSql: false,
+			Project:    pb.FileRequest_ROUTEVIEWS,
+		},
+		want: &pb.FileResponse{
+			Status:       pb.FileResponse_SUCCESS,
+			ErrorMessage: "",
+		},
 	}}
 
 	ctx := context.Background()

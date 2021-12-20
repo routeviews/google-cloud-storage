@@ -16,10 +16,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
+	"os"
 
 	"cloud.google.com/go/storage"
+	log "github.com/golang/glog"
 	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -33,8 +34,8 @@ const (
 )
 
 var (
-	port   = flag.Int("port", 9876, "Port on which gRPC connections will come.")
-	bucket = flag.String("bucket", "archive-routeviews", "Cloud storage bucket name.")
+	port   = os.Getenv("PORT")
+	bucket = flag.String("bucket", "routeviews-archive", "Cloud storage bucket name.")
 
 	// TODO(morrowc): find a method to define the TLS certificate to be used, if this will
 	//                not be done through GCLB's inbound https path.
@@ -64,8 +65,8 @@ func newRVServer(bucket string, client *storage.Client) (rvServer, error) {
 	}, nil
 }
 
-// Store a RARC RPKI file to cloud storage.
-func (r rvServer) handleRPKIRarc(ctx context.Context, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
+// Store a RARC RPKI or Routeviews file to cloud storage.
+func (r rvServer) handleDataFile(ctx context.Context, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
 	if err := r.fileStore(ctx, fn, c); err != nil {
 		resp.Status = pb.FileResponse_FAIL
 		return resp, err
@@ -106,10 +107,11 @@ func (r rvServer) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.File
 	// Process the content based upon project requirements.
 	switch {
 	case proj == pb.FileRequest_ROUTEVIEWS:
+		return r.handleDataFile(ctx, resp, fn, content)
 	case proj == pb.FileRequest_RIPE_RIS:
 	case proj == pb.FileRequest_RPKI_RARC:
 		// Simply store the file.
-		return r.handleRPKIRarc(ctx, resp, fn, content)
+		return r.handleDataFile(ctx, resp, fn, content)
 	}
 
 	return nil, fmt.Errorf("not Implemented storing: %v", req.GetFilename())
@@ -118,9 +120,13 @@ func (r rvServer) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.File
 func main() {
 	flag.Parse()
 
+	if port == "" {
+		port = "9876"
+		log.Infof("Default port selected: %s", port)
+	}
 	// Start the listener.
 	// NOTE: this listens on all IP Addresses, caution when testing.
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
 		log.Fatalf("failed to listen(): %v", err)
 	}
