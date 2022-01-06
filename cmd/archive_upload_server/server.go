@@ -35,7 +35,7 @@ const (
 
 var (
 	port   = os.Getenv("PORT")
-	bucket = flag.String("bucket", "routeviews-archive", "Cloud storage bucket name.")
+	bucket = flag.String("bucket", "routeviews-archives", "Cloud storage bucket name.")
 
 	// TODO(morrowc): find a method to define the TLS certificate to be used, if this will
 	//                not be done through GCLB's inbound https path.
@@ -51,6 +51,7 @@ type rvServer struct {
 func (r rvServer) fileStore(ctx context.Context, fn string, b []byte) error {
 	// Store the file content to the
 	wc := r.sc.Bucket(r.bucket).Object(fn).NewWriter(ctx)
+	defer wc.Close()
 	if _, err := io.Copy(wc, bytes.NewReader(b)); err != nil {
 		return fmt.Errorf("failed copying content to destination: %s/%s: %v", r.bucket, fn, err)
 	}
