@@ -19,7 +19,7 @@ Deployed to GCP CloudRun, from the project's Docker image store.
 
 3. Have cloud run, run the job:
   ```shell
-  $ gcloud run deploy  rv-server --image us-docker.pkg.dev/public-routing-data-backup/cloudrun/rv-server:latest
+  $ gcloud run deploy  rv-server --image us-docker.pkg.dev/public-routing-data-backup/cloudrun/rv-server:latest --use-http2 --no-allow-unauthenticated
   ```
 
 4. Verify the loadbalanced path is in place from internet -> port.
