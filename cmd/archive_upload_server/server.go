@@ -126,8 +126,9 @@ func main() {
 
 	if port == "" {
 		port = "9876"
-		log.Infof("Default port selected: %s", port)
 	}
+	log.Infof("Service will listren on port : %s", port)
+
 	// Start the listener.
 	// NOTE: this listens on all IP Addresses, caution when testing.
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
