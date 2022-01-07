@@ -12,23 +12,48 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/oauth"
 
 	pb "github.com/routeviews/google-cloud-storage/proto/rv"
-	grpcMetadata "google.golang.org/grpc/metadata"
 )
 
 var (
-	server = flag.String("server", "localhost:9876", "The host:port of the gRPC server.")
-	file   = flag.String("file", "", "A local File to transfer to cloud storage.")
+	server         = flag.String("server", "localhost:9876", "The host:port of the gRPC server.")
+	file           = flag.String("file", "", "A local File to transfer to cloud storage.")
+	serviceAccount = flag.String("sa_key", "", "Service account private key.")
 )
 
-func newConn(host string) (*grpc.ClientConn, error) {
+func newConn(ctx context.Context, host string, saPath string) (*grpc.ClientConn, error) {
 	var opts []grpc.DialOption
+
+	var idTokenSource oauth2.TokenSource
+	var err error
+	audience := "https://" + strings.Split(host, ":")[0]
+	if saPath == "" {
+		idTokenSource, err = idtoken.NewTokenSource(ctx, audience)
+		if err != nil {
+			if err.Error() != `idtoken: credential must be service_account, found "authorized_user"` {
+				return nil, fmt.Errorf("idtoken.NewTokenSource: %v", err)
+			}
+			gts, err := google.DefaultTokenSource(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("attempt to use Application Default Credentials failed: %v", err)
+			}
+			idTokenSource = gts
+		}
+	} else {
+		idTokenSource, err = idtoken.NewTokenSource(ctx, audience, idtoken.WithCredentialsFile(saPath))
+		if err != nil {
+			return nil, fmt.Errorf("unable to create TokenSource: %v", err)
+		}
+	}
+
 	opts = append(opts, grpc.WithAuthority(host))
 
 	systemRoots, err := x509.SystemCertPool()
@@ -38,31 +63,13 @@ func newConn(host string) (*grpc.ClientConn, error) {
 	cred := credentials.NewTLS(&tls.Config{
 		RootCAs: systemRoots,
 	})
-	opts = append(opts, grpc.WithTransportCredentials(cred))
+	opts = append(opts, grpc.WithTransportCredentials(cred), grpc.WithPerRPCCredentials(
+		oauth.TokenSource{idTokenSource}))
 
 	return grpc.Dial(host, opts...)
 }
 
-func upload(ctx context.Context, conn *grpc.ClientConn, p *pb.FileRequest, audience string) (*pb.FileResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	// Create an identity token.
-	// With a global TokenSource tokens would be reused and auto-refreshed at need.
-	// A given TokenSource is specific to the audience.
-	tokenSource, err := idtoken.NewTokenSource(ctx, audience)
-	if err != nil {
-		return nil, fmt.Errorf("idtoken.NewTokenSource: %v", err)
-	}
-	token, err := tokenSource.Token()
-	if err != nil {
-		return nil, fmt.Errorf("TokenSource.Token: %v", err)
-	}
-
-	// Add token to gRPC Request.
-	ctx = grpcMetadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token.AccessToken)
-
-	// Send the request.
+func upload(ctx context.Context, conn *grpc.ClientConn, p *pb.FileRequest) (*pb.FileResponse, error) {
 	client := pb.NewRVClient(conn)
 	return client.FileUpload(ctx, p)
 }
@@ -90,19 +97,19 @@ func main() {
 		log.Fatal("a filename to transfer is required for operation")
 	}
 
-	conn, err := newConn(*server)
+	ctx := context.Background()
+	conn, err := newConn(ctx, *server, *serviceAccount)
 	if err != nil {
 		log.Fatalf("fail to dial(%v): %v", *server, err)
 	}
 	defer conn.Close()
-	ctx := context.Background()
 
 	req, err := makeReq(*file)
 	if err != nil {
 		log.Fatalf("fail to makeReq(%v): %v", *file, err)
 	}
 
-	resp, err := upload(ctx, conn, req, strings.Split(*server, ":")[0])
+	resp, err := upload(ctx, conn, req)
 	if err != nil {
 		log.Fatalf("failed to upload file(%v): %v", *file, err)
 	}
