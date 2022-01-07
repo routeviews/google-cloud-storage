@@ -22,6 +22,11 @@ import (
 	grpcMetadata "google.golang.org/grpc/metadata"
 )
 
+const (
+	// Max message size set to 50mb.
+	maxMsgSize = 50 * 1024 * 1024
+)
+
 var (
 	server = flag.String("server", "localhost:9876", "The host:port of the gRPC server.")
 	file   = flag.String("file", "", "A local File to transfer to cloud storage.")
@@ -38,7 +43,12 @@ func newConn(host string) (*grpc.ClientConn, error) {
 	cred := credentials.NewTLS(&tls.Config{
 		RootCAs: systemRoots,
 	})
-	opts = append(opts, grpc.WithTransportCredentials(cred))
+	opts = append(opts,
+		[]grpc.DialOption{
+			grpc.WithTransportCredentials(cred),
+			grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMsgSize)),
+		}...,
+	)
 
 	return grpc.Dial(host, opts...)
 }
