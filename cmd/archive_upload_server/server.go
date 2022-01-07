@@ -31,6 +31,9 @@ const (
 	// TODO(morrowc): Sort out organization privilege problems to create a service account key.
 	// Be sure to have the JSON authentication bits in env(GOOGLE_APPLICATION_CREDENTIALS)
 	projectID = "1071922449970"
+
+	// Set a max receive message size: 10mb
+	maxMsgSize = 10 * 1024 * 1024
 )
 
 var (
@@ -143,7 +146,11 @@ func main() {
 		log.Fatalf("failed to create new rvServer: %v", err)
 	}
 
-	s := grpc.NewServer()
+	s := grpc.NewServer(
+		grpc.MaxMsgSize(maxMsgSize),
+		grpc.MaxRecvMsgSize(maxMsgSize),
+		grpc.MaxSendMsgSize(maxMsgSize),
+	)
 	pb.RegisterRVServer(s, r)
 
 	// Register the reflection service on gRPC server.
