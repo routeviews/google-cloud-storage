@@ -32,8 +32,8 @@ const (
 	// Be sure to have the JSON authentication bits in env(GOOGLE_APPLICATION_CREDENTIALS)
 	projectID = "1071922449970"
 
-	// Set a max receive message size: 10mb
-	maxMsgSize = 10 * 1024 * 1024
+	// Set a max receive message size: 50mb
+	maxMsgSize = 50 * 1024 * 1024
 )
 
 var (
