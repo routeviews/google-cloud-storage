@@ -31,6 +31,9 @@ const (
 	// TODO(morrowc): Sort out organization privilege problems to create a service account key.
 	// Be sure to have the JSON authentication bits in env(GOOGLE_APPLICATION_CREDENTIALS)
 	projectID = "1071922449970"
+
+	// Set a max receive message size: 50mb
+	maxMsgSize = 50 * 1024 * 1024
 )
 
 var (
@@ -123,8 +126,9 @@ func main() {
 
 	if port == "" {
 		port = "9876"
-		log.Infof("Default port selected: %s", port)
 	}
+	log.Infof("Service will listren on port : %s", port)
+
 	// Start the listener.
 	// NOTE: this listens on all IP Addresses, caution when testing.
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
@@ -143,7 +147,11 @@ func main() {
 		log.Fatalf("failed to create new rvServer: %v", err)
 	}
 
-	s := grpc.NewServer()
+	s := grpc.NewServer(
+		grpc.MaxMsgSize(maxMsgSize),
+		grpc.MaxRecvMsgSize(maxMsgSize),
+		grpc.MaxSendMsgSize(maxMsgSize),
+	)
 	pb.RegisterRVServer(s, r)
 
 	// Register the reflection service on gRPC server.

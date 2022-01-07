@@ -23,10 +23,15 @@ import (
 	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 )
 
+const (
+	// Max message size set to 50mb.
+	maxMsgSize = 50 * 1024 * 1024
+)
+
 var (
-	server         = flag.String("server", "localhost:9876", "The host:port of the gRPC server.")
-	file           = flag.String("file", "", "A local File to transfer to cloud storage.")
-	serviceAccount = flag.String("sa_key", "", "Service account private key.")
+	server = flag.String("server", "localhost:9876", "The host:port of the gRPC server.")
+	file   = flag.String("file", "", "A local File to transfer to cloud storage.")
+	saKey  = flag.String("sa_key", "", "Service account private key.")
 )
 
 func newConn(ctx context.Context, host string, saPath string) (*grpc.ClientConn, error) {
@@ -63,8 +68,14 @@ func newConn(ctx context.Context, host string, saPath string) (*grpc.ClientConn,
 	cred := credentials.NewTLS(&tls.Config{
 		RootCAs: systemRoots,
 	})
-	opts = append(opts, grpc.WithTransportCredentials(cred), grpc.WithPerRPCCredentials(
-		oauth.TokenSource{idTokenSource}))
+
+	opts = append(opts,
+		[]grpc.DialOption{
+			grpc.WithTransportCredentials(cred),
+			grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMsgSize)),
+			grpc.WithPerRPCCredentials(oauth.TokenSource{idTokenSource}),
+		}...,
+	)
 
 	return grpc.Dial(host, opts...)
 }
@@ -98,7 +109,7 @@ func main() {
 	}
 
 	ctx := context.Background()
-	conn, err := newConn(ctx, *server, *serviceAccount)
+	conn, err := newConn(ctx, *server, *saKey)
 	if err != nil {
 		log.Fatalf("fail to dial(%v): %v", *server, err)
 	}
