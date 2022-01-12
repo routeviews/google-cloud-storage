@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/oauth2/google"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -63,16 +62,8 @@ func upload(ctx context.Context, conn *grpc.ClientConn, p *pb.FileRequest, audie
 	// A given TokenSource is specific to the audience.
 	tokenSource, err := idtoken.NewTokenSource(ctx, audience)
 	if err != nil {
-		if err.Error() != `idtoken: credential must be service_account, found "authorized_user"` {
-			return nil, fmt.Errorf("idtoken.NewTokenSource: %v", err)
-		}
-		gts, err := google.DefaultTokenSource(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("attempt to use Application Default Credentials failed: %v", err)
-		}
-		tokenSource = gts
+		return nil, fmt.Errorf("idtoken.NewTokenSource: %v", err)
 	}
-
 	token, err := tokenSource.Token()
 	if err != nil {
 		return nil, fmt.Errorf("TokenSource.Token: %v", err)
