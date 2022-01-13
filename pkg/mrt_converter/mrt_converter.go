@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,8 +16,13 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/packet/mrt"
+
+	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 	log "github.com/sirupsen/logrus"
 )
+
+// ProjectMetadataKey maps to the project source in an archive's GCS metadata.
+const ProjectMetadataKey = "routingDataProject"
 
 // attributePayload represents path attribute data to be saved in BigQuery. It
 // contains an attribute type and JSON of the BGP attribute.
@@ -38,25 +44,72 @@ type update struct {
 	Attributes []*attributePayload
 }
 
-// extractCollector extracts the collector name from the input file path.
-// The path is assumed to be a GCS object (i.e. not started with '/').
-func extractCollector(filename string) (string, error) {
+type Config struct {
+	SrcBucket string
+	DstBucket string
+	SrcObject string
+}
+
+// routeViewsCollectorFromPath extracts the RV collector name from the input
+// file path. The path will be treated like it has a preceding slash if it
+// doesn't have one.
+func routeViewsCollectorFromPath(filename string) (string, error) {
 	if filename == "" {
 		return "", fmt.Errorf("empty file path")
 	}
 
-	if strings.HasPrefix(filename, "/") {
-		return "", fmt.Errorf("path should not start with '/'")
+	if !strings.HasPrefix(filename, "/") {
+		filename = "/" + filename
 	}
 	// TODO: Handle other object filenames when we import other sources.
 	if !strings.Contains(filename, "bgpdata") {
 		return "", fmt.Errorf("file %s is not a valid RouteViews archive path", filename)
 	}
 	dirs := strings.Split(filename, "/")
-	if dirs[0] == "bgpdata" {
+	if dirs[1] == "bgpdata" {
 		return "route-views2", nil
 	}
-	return dirs[0], nil
+	return dirs[1], nil
+}
+
+// readArchive reads from the source bucket and object. It returns the
+// collector name and its content if successful.
+func readArchive(ctx context.Context, gcsCli *storage.Client, bucket, object string) (string, []byte, error) {
+	obj := gcsCli.Bucket(bucket).Object(object)
+
+	// Read content from the object.
+	r, err := obj.NewReader(ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("NewReader(gs://%s/%s): %v", bucket, object, err)
+	}
+	content, err := ioutil.ReadAll(r)
+	if err != nil {
+		return "", nil, fmt.Errorf("ioutil.ReadAll: %v", err)
+	}
+
+	// Extract project type from the object metadata.
+	attrs, err := obj.Attrs(ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("obj.Attrs: %v", err)
+	}
+	projectType, ok := attrs.Metadata[ProjectMetadataKey]
+	if !ok {
+		return "", nil, fmt.Errorf("metadata '%s' is missing from gs://%s/%s", ProjectMetadataKey, bucket, object)
+	}
+	var collector string
+	switch projectType {
+	case pb.FileRequest_ROUTEVIEWS.String():
+		collector, err = routeViewsCollectorFromPath(object)
+		if err != nil {
+			return "", nil, err
+		}
+	default:
+		// If project type is unknown, we will just leave collector empty and
+		// proceed.
+		log.Warnf("unsupported project type %s", projectType)
+	}
+
+	return collector, content, nil
 }
 
 func translateAttrs(attrs []bgp.PathAttributeInterface) []*attributePayload {
@@ -192,25 +245,25 @@ func convertedExists(ctx context.Context, gcsCli *storage.Client, object, bucket
 // ProcessMRTArchive converts an MRT dump into updates on GCS, which will later
 // be picked up by BigQuery automatically. ProcessMRTDump only supports dumps
 // of updates.
-func ProcessMRTArchive(ctx context.Context, gcsCli *storage.Client, filename, bucket string, content []byte) error {
-	return processMRTArchive(ctx, gcsCli, filename, bucket, content, bzip2.NewReader)
+func ProcessMRTArchive(ctx context.Context, gcsCli *storage.Client, cfg *Config) error {
+	return processMRTArchive(ctx, gcsCli, cfg, bzip2.NewReader)
 }
 
-func processMRTArchive(ctx context.Context, gcsCli *storage.Client, filename, bucket string, content []byte, br bzReaderFunc) error {
-	if len(content) == 0 {
-		return fmt.Errorf("gs://%s/%s: content length is zero", bucket, filename)
-	}
-	outObject := strings.Replace(filename, filepath.Ext(filename), ".gz", 1)
-	if found, err := convertedExists(ctx, gcsCli, outObject, bucket); err != nil {
+func processMRTArchive(ctx context.Context, gcsCli *storage.Client, cfg *Config, br bzReaderFunc) error {
+	dstObject := strings.Replace(cfg.SrcObject, filepath.Ext(cfg.SrcObject), ".gz", 1)
+	if found, err := convertedExists(ctx, gcsCli, dstObject, cfg.DstBucket); err != nil {
 		return fmt.Errorf("convertedExists: %v", err)
 	} else if found {
-		log.Warnf("converted archive gs://%s/%s already exists.", bucket, outObject)
+		log.Warnf("converted archive gs://%s/%s already exists.", cfg.DstBucket, dstObject)
 		return nil
 	}
 
-	collector, err := extractCollector(filename)
+	collector, content, err := readArchive(ctx, gcsCli, cfg.SrcBucket, cfg.SrcObject)
 	if err != nil {
-		return fmt.Errorf("extractCollector(%s): %v", filename, err)
+		return fmt.Errorf("readArchive(%s, %s): %v", cfg.SrcBucket, cfg.SrcObject, err)
+	}
+	if len(content) == 0 {
+		return fmt.Errorf("gs://%s/%s: content length is zero", cfg.SrcBucket, cfg.DstBucket)
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -220,7 +273,7 @@ func processMRTArchive(ctx context.Context, gcsCli *storage.Client, filename, bu
 	}
 
 	// Only write messages if the whole conversion is done.
-	dst := gcsCli.Bucket(bucket).Object(outObject).NewWriter(ctx)
+	dst := gcsCli.Bucket(cfg.DstBucket).Object(dstObject).NewWriter(ctx)
 	dst.Write(buf.Bytes())
 	defer dst.Close()
 	return nil

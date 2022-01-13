@@ -18,6 +18,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/packet/mrt"
+	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
+	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 )
 
 const pubsubMsgFormat = `{
@@ -91,7 +93,7 @@ func makeFakeCompressedMRT(t *testing.T, body mrt.Body) []byte {
 	return buf.Bytes()
 }
 
-func TestArchiveUploadHandlerErrors(t *testing.T) {
+func TestArchiveUploadHandle(t *testing.T) {
 	tests := []struct {
 		desc        string
 		pubsubMsg   string
@@ -103,34 +105,57 @@ func TestArchiveUploadHandlerErrors(t *testing.T) {
 			pubsubMsg: "bad JSON pubsub message",
 		},
 		{
-			desc:      "skipped because it's not a OBJECT_FINALIZE",
+			desc:      "skipped because it's not a OBJECT_METADATA_UPDATE",
 			pubsubMsg: makeFakeMsgFormat("OBJECT_DELETE", "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2", "src-bucket"),
 		},
 		{
 			desc:      "object doesn't exist",
-			pubsubMsg: makeFakeMsgFormat("OBJECT_FINALIZE", "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2", "src-bucket"),
+			pubsubMsg: makeFakeMsgFormat("OBJECT_METADATA_UPDATE", "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2", "src-bucket"),
 		},
 		{
 			desc:      "object can't be parsed",
-			pubsubMsg: makeFakeMsgFormat("OBJECT_FINALIZE", "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2", "src-bucket"),
+			pubsubMsg: makeFakeMsgFormat("OBJECT_METADATA_UPDATE", "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2", "src-bucket"),
 			fakeobjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
 						BucketName: "src-bucket",
 						Name:       "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2",
+						Metadata: map[string]string{
+							converter.ProjectMetadataKey: pb.FileRequest_ROUTEVIEWS.String(),
+						},
 					},
 					Content: []byte{1, 2, 3, 4},
 				},
 			},
 		},
 		{
-			desc:      "object can't be parsed",
-			pubsubMsg: makeFakeMsgFormat("OBJECT_FINALIZE", "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2", "src-bucket"),
+			desc:      "missing metadata",
+			pubsubMsg: makeFakeMsgFormat("OBJECT_METADATA_UPDATE", "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2", "src-bucket"),
 			fakeobjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
 						BucketName: "src-bucket",
 						Name:       "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2",
+						Metadata:   map[string]string{},
+					},
+					Content: makeFakeCompressedMRT(t, mrt.NewBGP4MPMessage(100000, 6447, 0, "1.0.0.0", "2.0.0.0", true, bgp.NewBGPUpdateMessage(nil, nil, []*bgp.IPAddrPrefix{
+						bgp.NewIPAddrPrefix(24, "10.0.0.0"),
+						bgp.NewIPAddrPrefix(24, "20.0.0.0"),
+					}))),
+				},
+			},
+		},
+		{
+			desc:      "success",
+			pubsubMsg: makeFakeMsgFormat("OBJECT_METADATA_UPDATE", "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2", "src-bucket"),
+			fakeobjects: []fakestorage.Object{
+				{
+					ObjectAttrs: fakestorage.ObjectAttrs{
+						BucketName: "src-bucket",
+						Name:       "route-views4/bgpdata/updates/2021.12/updates.20211212.0015.bz2",
+						Metadata: map[string]string{
+							converter.ProjectMetadataKey: pb.FileRequest_ROUTEVIEWS.String(),
+						},
 					},
 					Content: makeFakeCompressedMRT(t, mrt.NewBGP4MPMessage(100000, 6447, 0, "1.0.0.0", "2.0.0.0", true, bgp.NewBGPUpdateMessage(nil, nil, []*bgp.IPAddrPrefix{
 						bgp.NewIPAddrPrefix(24, "10.0.0.0"),

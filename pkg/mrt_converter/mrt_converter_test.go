@@ -8,16 +8,17 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/packet/mrt"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/fsouza/fake-gcs-server/fakestorage"
+
+	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	log "github.com/sirupsen/logrus"
 )
 
 // Fake MRT BGP4MP messages.
@@ -229,7 +230,7 @@ func TestParseUpdate(t *testing.T) {
 	}
 }
 
-func TestExtractCollector(t *testing.T) {
+func TestRouteViewsCollectorFromPath(t *testing.T) {
 	tests := []struct {
 		desc    string
 		path    string
@@ -238,12 +239,12 @@ func TestExtractCollector(t *testing.T) {
 	}{
 		{
 			desc: "route-views2 archive",
-			path: "bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
+			path: "/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
 			want: "route-views2",
 		},
 		{
 			desc: "non route-views2 archive",
-			path: "route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
+			path: "/route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
 			want: "route-views.sg",
 		},
 		{
@@ -256,17 +257,16 @@ func TestExtractCollector(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			desc:    "bad file path - preceding slash",
-			path:    "/route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
-			wantErr: true,
+			desc: "valid path - no preceding slash",
+			path: "route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
+			want: "route-views.sg",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			got, err := extractCollector(test.path)
-			t.Log(strings.Split(test.path, "/"))
+			got, err := routeViewsCollectorFromPath(test.path)
 			if gotErr := err != nil; test.wantErr != gotErr || got != test.want {
-				t.Errorf("extractCollector(%s) = '%s', %v; want '%s', wantErr = %v", test.path, got, err, test.want, test.wantErr)
+				t.Errorf("routeViewsCollectorFromPath(%s) = '%s', %v; want '%s', wantErr = %v", test.path, got, err, test.want, test.wantErr)
 			}
 		})
 	}
@@ -487,22 +487,34 @@ func TestConvertMRTErrors(t *testing.T) {
 func TestProcessMRTArchive(t *testing.T) {
 	ctx := context.Background()
 
-	bucket := "test-bucket"
-	fakegcs := fakestorage.NewServer(nil)
+	fakeTime := time.Unix(time.Now().Unix(), 0)
+	fakeMRT := encodeMRTMessage(t, fakeMRTMessage(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, fakeAS4Ann))
+
+	dstBucket := "test-dst-bucket"
+	srcBucket := "test-src-bucket"
+	srcObject := "bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2"
+	wantObject := "bgpdata/2021.11/UPDATES/updates.20211101.0000.gz"
+	fakegcs := fakestorage.NewServer([]fakestorage.Object{{
+		ObjectAttrs: fakestorage.ObjectAttrs{
+			BucketName: srcBucket,
+			Name:       srcObject,
+			Metadata: map[string]string{
+				ProjectMetadataKey: pb.FileRequest_ROUTEVIEWS.String(),
+			},
+		},
+		Content: fakeMRT,
+	}})
 	fakegcs.CreateBucketWithOpts(fakestorage.CreateBucketOpts{
-		Name: bucket,
+		Name: dstBucket,
 	})
 	t.Cleanup(fakegcs.Stop)
 	fakeCli := fakegcs.Client()
 
-	fakeTime := time.Unix(time.Now().Unix(), 0)
-	// GCS uses multipart HTTP messages to upload data; the first part contains
-	// metadata, and the second part contains object data.
-	object := "bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2"
-	wantObject := "bgpdata/2021.11/UPDATES/updates.20211101.0000.gz"
-	err := processMRTArchive(ctx, fakeCli, object, "test-bucket",
-		encodeMRTMessage(t, fakeMRTMessage(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, fakeAS4Ann)),
-		fakeBzip)
+	err := processMRTArchive(ctx, fakeCli, &Config{
+		SrcBucket: srcBucket,
+		DstBucket: dstBucket,
+		SrcObject: srcObject,
+	}, fakeBzip)
 	if err != nil {
 		t.Error(err)
 	}
@@ -515,26 +527,27 @@ func TestProcessMRTArchive(t *testing.T) {
 	}}
 
 	// Check if converted archive is expected.
-	gotObj, err := fakegcs.GetObject(bucket, wantObject)
+	gotObj, err := fakegcs.GetObject(dstBucket, wantObject)
 	if err != nil {
-		t.Fatalf("fakegcs.GetObject(%s, %s): %v", bucket, wantObject, err)
+		t.Fatalf("fakegcs.GetObject(%s, %s): %v", dstBucket, wantObject, err)
 	}
-
 	want := makeResponse(t, wantUpdates)
 	if got := decompressed(t, bytes.NewBuffer(gotObj.Content)); string(want) != string(got) {
 		t.Errorf("ProcessMRTArchive() outputs mismatched:\nwant: %s\ngot: %s", string(want), string(got))
 	}
 
 	// Converted archive already exists; conversion should be skipped.
-	err = processMRTArchive(ctx, fakeCli, object, "test-bucket",
-		encodeMRTMessage(t, fakeMRTMessage(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, fakeAS4Withdrawal)),
-		fakeBzip)
+	err = processMRTArchive(ctx, fakeCli, &Config{
+		SrcBucket: srcBucket,
+		DstBucket: dstBucket,
+		SrcObject: srcObject,
+	}, fakeBzip)
 	if err != nil {
 		t.Errorf("processMRTArchive: %v; want nil err", err)
 	}
-	gotObj, err = fakegcs.GetObject(bucket, wantObject)
+	gotObj, err = fakegcs.GetObject(dstBucket, wantObject)
 	if err != nil {
-		t.Fatalf("fakegcs.GetObject(%s, %s): %v", bucket, wantObject, err)
+		t.Fatalf("fakegcs.GetObject(%s, %s): %v", dstBucket, wantObject, err)
 	}
 	if got := decompressed(t, bytes.NewBuffer(gotObj.Content)); string(want) != string(got) {
 		t.Errorf("ProcessMRTArchive() outputs mismatched:\nwant: %s\ngot: %s", string(want), string(got))
@@ -545,29 +558,48 @@ func TestProcessMRTArchiveErrors(t *testing.T) {
 	tests := []struct {
 		desc     string
 		filename string
+		metadata map[string]string
 		content  []byte
 	}{
 		{
 			desc:     "bad filename",
 			filename: "/routeviews",
+			metadata: map[string]string{ProjectMetadataKey: pb.FileRequest_ROUTEVIEWS.String()},
 			content:  encodeMRTMessage(t, fakeMRTMessage(t, time.Now(), mrt.BGP4MP_ET, mrt.MESSAGE_AS4, fakeAS4Withdrawal)),
 		},
 		{
 			desc:     "bad content",
 			filename: "route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
+			metadata: map[string]string{ProjectMetadataKey: pb.FileRequest_ROUTEVIEWS.String()},
 			content:  encodeMRTMessage(t, fakeMRTMessage(t, time.Now(), mrt.BGP4MP_ET, mrt.MESSAGE_AS4, fakeAS4Withdrawal))[:10],
+		},
+		{
+			desc:     "unrecognized project type",
+			filename: "route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
+			content:  encodeMRTMessage(t, fakeMRTMessage(t, time.Now(), mrt.BGP4MP_ET, mrt.MESSAGE_AS4, fakeAS4Withdrawal)),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx := context.Background()
-			fakegcs := fakestorage.NewServer(nil)
+			fakegcs := fakestorage.NewServer([]fakestorage.Object{{
+				ObjectAttrs: fakestorage.ObjectAttrs{
+					BucketName: "src-bucket",
+					Name:       test.filename,
+					Metadata:   test.metadata,
+				},
+				Content: test.content,
+			}})
 			fakegcs.CreateBucketWithOpts(fakestorage.CreateBucketOpts{
-				Name: "test_bucket",
+				Name: "test-bucket",
 			})
 			t.Cleanup(fakegcs.Stop)
-			err := processMRTArchive(ctx, fakegcs.Client(), test.filename, "test_bucket", test.content, fakeBzip)
+			err := processMRTArchive(ctx, fakegcs.Client(), &Config{
+				SrcBucket: "src-bucket",
+				SrcObject: test.filename,
+				DstBucket: "test-bucket",
+			}, fakeBzip)
 			if err == nil {
 				t.Error("ProcessMRTArchive() = nil err; want non-nil err")
 			}
