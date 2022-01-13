@@ -6,6 +6,7 @@ import (
 
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/google/go-cmp/cmp"
+	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
 	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 	"google.golang.org/protobuf/testing/protocmp"
 )
@@ -61,7 +62,9 @@ func TestFileUpload(t *testing.T) {
 
 	ctx := context.Background()
 	for _, test := range tests {
-		fs, err := newRVServer(test.bucket, fakestorage.NewServer(nil).Client())
+		srv := fakestorage.NewServer(nil)
+		cli := srv.Client()
+		fs, err := newRVServer(test.bucket, cli)
 		if err != nil {
 			t.Fatalf("[%v]: failed initialzing server: %v", test.desc, err)
 		}
@@ -75,6 +78,18 @@ func TestFileUpload(t *testing.T) {
 			if diff := cmp.Diff(got, test.want, protocmp.Transform()); diff != "" {
 				t.Errorf("[%v] got/want mismatch:\n%v\n", test.desc, diff)
 			}
+		}
+
+		// Check validity of uploaded files.
+		if test.wantErr {
+			return
+		}
+		obj, err := srv.GetObject(test.bucket, test.req.Filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gotProj := obj.ObjectAttrs.Metadata[converter.ProjectMetadataKey]; gotProj != test.req.Project.String() {
+			t.Errorf("got metadata %s=%s; want %s", converter.ProjectMetadataKey, gotProj, test.req.Project.String())
 		}
 	}
 }

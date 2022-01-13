@@ -44,18 +44,6 @@ type gcsPubSubEvent struct {
 	Subscription string `json:"subscription"`
 }
 
-func (m *server) readAll(ctx context.Context, object, bucket string) ([]byte, error) {
-	r, err := m.gcsCli.Bucket(bucket).Object(object).NewReader(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("NewReader(gs://%s/%s): %v", bucket, object, err)
-	}
-	content, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("ioutil.ReadAll: %v", err)
-	}
-	return content, nil
-}
-
 // archiveUploadHandler handles any new object changes from the archive bucket.
 // It will not return an HTTP error because all errrors are fatal and should
 // not be retried.
@@ -72,8 +60,11 @@ func (s *server) archiveUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if msg.Message.Attributes.EventType != "OBJECT_FINALIZE" {
-		log.Infof("Skipped non-'OBJECT_FINALIZE' msg: id %s, type %s", msg.Message.MessageID, msg.Message.Attributes.EventType)
+	// The archive server will set metadata of project source after the object
+	// is created, so we will look for metadata update messages instead of
+	// object creations.
+	if msg.Message.Attributes.EventType != "OBJECT_METADATA_UPDATE" {
+		log.Infof("Skipped non-'OBJECT_METADATA_UPDATE' msg: id %s, type %s", msg.Message.MessageID, msg.Message.Attributes.EventType)
 		return
 	}
 
@@ -82,16 +73,11 @@ func (s *server) archiveUploadHandler(w http.ResponseWriter, r *http.Request) {
 		"object":    msg.Message.Attributes.Object,
 		"messageID": msg.Message.MessageID,
 	}).Info("Converting archive")
-	content, err := s.readAll(r.Context(), msg.Message.Attributes.Object, msg.Message.Attributes.Bucket)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"bucket":    msg.Message.Attributes.Bucket,
-			"object":    msg.Message.Attributes.Object,
-			"messageID": msg.Message.MessageID,
-		}).Errorf("m.readAll: %v", err)
-		return
-	}
-	err = converter.ProcessMRTArchive(r.Context(), s.gcsCli, msg.Message.Attributes.Object, s.dstBucket, content)
+	err = converter.ProcessMRTArchive(r.Context(), s.gcsCli, &converter.Config{
+		SrcBucket: msg.Message.Attributes.Bucket,
+		SrcObject: msg.Message.Attributes.Object,
+		DstBucket: s.dstBucket,
+	})
 	if err != nil {
 		log.WithFields(log.Fields{
 			"dstBucket": s.dstBucket,

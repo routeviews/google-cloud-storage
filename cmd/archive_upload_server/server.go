@@ -21,6 +21,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	log "github.com/golang/glog"
+	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
 	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -50,9 +51,23 @@ type rvServer struct {
 	pb.UnimplementedRVServer
 }
 
+// setProjectMeta set project source in the metadata of an GCS object. The
+// object must've existed when we set metadata.
+func (r rvServer) setProjectMeta(ctx context.Context, obj string, proj pb.FileRequest_Project) error {
+	// Set metadata once the object is created.
+	if _, err := r.sc.Bucket(r.bucket).Object(obj).Update(ctx, storage.ObjectAttrsToUpdate{
+		Metadata: map[string]string{
+			converter.ProjectMetadataKey: proj.String(),
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to set metadata '%s:%s': %v", converter.ProjectMetadataKey, proj.String(), err)
+	}
+	return nil
+}
+
 // fileStore stores a file ([]byte) to a designated bucket location (string).
 func (r rvServer) fileStore(ctx context.Context, fn string, b []byte) error {
-	// Store the file content to the
+	// Store the file content to the destination bucket.
 	wc := r.sc.Bucket(r.bucket).Object(fn).NewWriter(ctx)
 	defer wc.Close()
 	if _, err := io.Copy(wc, bytes.NewReader(b)); err != nil {
@@ -70,8 +85,12 @@ func newRVServer(bucket string, client *storage.Client) (rvServer, error) {
 }
 
 // Store a RARC RPKI or Routeviews file to cloud storage.
-func (r rvServer) handleDataFile(ctx context.Context, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
+func (r rvServer) handleDataFile(ctx context.Context, proj pb.FileRequest_Project, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
 	if err := r.fileStore(ctx, fn, c); err != nil {
+		resp.Status = pb.FileResponse_FAIL
+		return resp, err
+	}
+	if err := r.setProjectMeta(ctx, fn, proj); err != nil {
 		resp.Status = pb.FileResponse_FAIL
 		return resp, err
 	}
@@ -111,11 +130,11 @@ func (r rvServer) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.File
 	// Process the content based upon project requirements.
 	switch {
 	case proj == pb.FileRequest_ROUTEVIEWS:
-		return r.handleDataFile(ctx, resp, fn, content)
+		return r.handleDataFile(ctx, pb.FileRequest_ROUTEVIEWS, resp, fn, content)
 	case proj == pb.FileRequest_RIPE_RIS:
 	case proj == pb.FileRequest_RPKI_RARC:
 		// Simply store the file.
-		return r.handleDataFile(ctx, resp, fn, content)
+		return r.handleDataFile(ctx, pb.FileRequest_RPKI_RARC, resp, fn, content)
 	}
 
 	return nil, fmt.Errorf("not Implemented storing: %v", req.GetFilename())
