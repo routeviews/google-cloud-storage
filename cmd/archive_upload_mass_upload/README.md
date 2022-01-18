@@ -28,6 +28,8 @@ Grant the service account the following roles/permissions:
    * Cloud Run Invoker - configured in the CloudRun instance permissions.
    * Storage Object Creator - configured in IAM permissions.
    * Storage Object Viewer - configured in IAM permissions.
+   * Storage Object Creator - configured for the storage bucket
+   * Storage Object Viewer - configured for the storage bucket
 
 ## Run the Upload Process
 
