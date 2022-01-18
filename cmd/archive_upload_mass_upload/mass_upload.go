@@ -13,36 +13,54 @@ package main
 import (
 	"context"
 	"crypto/md5"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/golang/glog"
 	"github.com/jlaffaye/ftp"
+	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/idtoken"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/oauth"
 )
 
 const (
 	dialTimeout = 5 * time.Second
+	// Max message size set to 50mb.
+	maxMsgSize = 50 * 1024 * 1024
 )
 
 var (
 	// Google Cloud Storage bucket name to put content into.
 	bucket = flag.String("bucket", "", "Bucket to mirror content into.")
 	// Remote ftp archive URL to use as a starting point to read content from.
-	archive = flag.String("archive", "", "Site URL to mirror content from.")
+	archive = flag.String("archive", "", "Site URL to mirror content from: ftp://site/dir.")
 	aUser   = flag.String("archive_user", "ftp", "Site userid to use with FTP.")
 	aPasswd = flag.String("archive_pass", "mirror@", "Site password to use with this FTP.")
+
+	// gRPC endpoint (https url) to upload replacement content to and credentials file, if necessary.
+	grpcService   = flag.String("uploadURL", "rv-server-cgfq4yjmfa-uc.a.run.app:443", "Upload service host:port.")
+	svcAccountKey = flag.String("saKey", "", "File location of service account key, if required.")
 )
 
 type client struct {
-	bs     *storage.Client
-	bh     *storage.BucketHandle
-	fc     *ftp.ServerConn
-	bucket string
+	gClient pb.RVClient
+	bs      *storage.Client
+	bh      *storage.BucketHandle
+	fc      *ftp.ServerConn
+	bucket  string
+	// A channel which will contain
+	ch chan *evalFile
 }
 
 type evalFile struct {
@@ -58,13 +76,61 @@ func connectFtp(site string) (*ftp.ServerConn, error) {
 	return conn, err
 }
 
-func new(ctx context.Context, aUser, aPasswd, site, bucket string) (*client, error) {
+// newGRPC makes a new grpc (over https) connection for the upload service.
+// host is the hostname to connect to, saPath is a path to a stored json service account key.
+func newGRPC(ctx context.Context, host, saPath string) (*grpc.ClientConn, error) {
+	var opts []grpc.DialOption
+
+	var idTokenSource oauth2.TokenSource
+	var err error
+	audience := "https://" + strings.Split(host, ":")[0]
+	if saPath == "" {
+		idTokenSource, err = idtoken.NewTokenSource(ctx, audience)
+		if err != nil {
+			if err.Error() != `idtoken: credential must be service_account, found "authorized_user"` {
+				return nil, fmt.Errorf("idtoken.NewTokenSource: %v", err)
+			}
+			gts, err := google.DefaultTokenSource(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("attempt to use Application Default Credentials failed: %v", err)
+			}
+			idTokenSource = gts
+		}
+	} else {
+		idTokenSource, err = idtoken.NewTokenSource(ctx, audience, idtoken.WithCredentialsFile(saPath))
+		if err != nil {
+			return nil, fmt.Errorf("unable to create TokenSource: %v", err)
+		}
+	}
+
+	opts = append(opts, grpc.WithAuthority(host))
+
+	systemRoots, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, err
+	}
+	cred := credentials.NewTLS(&tls.Config{
+		RootCAs: systemRoots,
+	})
+
+	opts = append(opts,
+		[]grpc.DialOption{
+			grpc.WithTransportCredentials(cred),
+			grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMsgSize)),
+			grpc.WithPerRPCCredentials(oauth.TokenSource{idTokenSource}),
+		}...,
+	)
+
+	return grpc.Dial(host, opts...)
+}
+
+func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, svcAccountKey string) (*client, error) {
 	f, err := connectFtp(site)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to the ftp site(%v): %v", site, err)
 	}
 
-	// Change to the top level directory of the archive.
+	// Login to cloud-storage, and get a bucket handle to the archive bucket.
 	if err := f.Login(aUser, aPasswd); err != nil {
 		return nil, fmt.Errorf("failed to login to site(%v) as u/p (%v/%v): %v",
 			site, aUser, aPasswd, err)
@@ -77,18 +143,88 @@ func new(ctx context.Context, aUser, aPasswd, site, bucket string) (*client, err
 	// Get a BucketHandle, which enables access to the objects/etc.
 	bh := c.Bucket(bucket)
 
+	// Create a new upload service client.
+	gc, err := newGRPC(ctx, grpcService, svcAccountKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gRPC client: %v", err)
+	}
+
 	return &client{
-		bs:     c,
-		bh:     bh,
-		fc:     f,
-		bucket: bucket,
+		gClient: pb.NewRVClient(gc),
+		bs:      c,
+		bh:      bh,
+		fc:      f,
+		bucket:  bucket,
+		ch:      make(chan *evalFile),
 	}, nil
 }
 
+// close politely closes the handles to cloud-storage and the ftp archive.
 func (c *client) close() {
 	c.fc.Quit()
 	if err := c.bs.Close(); err != nil {
-		log.Fatalf("failed to close the cloud-storage client: %v", err)
+		glog.Fatalf("failed to close the cloud-storage client: %v", err)
+	}
+}
+
+// ftpWalk walks a defined directory, sending each file
+// which matches a known pattern (updates) to a channel for further evaluation.
+func (c *client) ftpWalk(dir string) {
+	// Start the walk activity.
+	w := c.fc.Walk(dir)
+	// Walk the directory tree, stat/evaluate files, else continue walking.
+	for {
+		if !w.Next() {
+			glog.Error("Next returned false, closing channel and returning")
+			close(c.ch)
+			return
+		}
+		e := w.Stat()
+		if e.Type == ftp.EntryTypeFile && strings.HasPrefix(e.Name, "updates") {
+			// Add the file to the channel, for evaluation and potential copy.
+			c.ch <- &evalFile{name: strings.TrimLeft(w.Path(), "/")}
+		}
+	}
+}
+
+// readChannel reads FTP file results from a channel, collects and compares MD5 checksums
+// and uploads files to cloud-storage if mismatches occur.
+func (c *client) readChannel(ctx context.Context) {
+	for {
+		ef := <-c.ch
+		// Exit if ef is nil, because the channel closed.
+		if ef == nil {
+			glog.Error("Channel closed, exiting readChannel.")
+			break
+		}
+		fn := strings.TrimLeft(ef.name, "/")
+		csSum, err := c.getMD5cloud(ctx, fn)
+		if err != nil {
+			if strings.Contains(err.Error(), "object doesn't exist") {
+				csSum = ""
+			} else {
+				glog.Fatalf("failed to get cloud md5 for file(%s): %v", fn, err)
+			}
+		}
+		fSum, fc, err := c.getMD5ftp(ef.name)
+		if err != nil {
+			glog.Fatalf("failed to get ftp md5 for file(%s): %v", ef.name, err)
+		}
+		if csSum != fSum {
+			glog.Infof("Archiving file(%s) size(%d) to cloud.", ef.name, len(fc))
+			req := pb.FileRequest{
+				Filename: ef.name,
+				Content:  fc,
+				Md5Sum:   fSum,
+				Project:  pb.FileRequest_ROUTEVIEWS,
+			}
+			resp, err := c.gClient.FileUpload(ctx, &req)
+			if err != nil {
+				glog.Errorf("failed uploading(%s) to grpcService: %v", ef.name, err)
+				return
+			}
+			glog.Infof("File upload status: %s", resp.GetStatus())
+		}
 	}
 }
 
@@ -100,21 +236,21 @@ func (c *client) getMD5cloud(ctx context.Context, path string) (string, error) {
 	return hex.EncodeToString(attrs.MD5), nil
 }
 
-func (c *client) getMD5ftp(path string) (string, error) {
+func (c *client) getMD5ftp(path string) (string, []byte, error) {
 	r, err := c.fc.Retr(path)
 	if err != nil {
-		return "", fmt.Errorf("failed to RETR the path: %v", err)
+		return "", nil, fmt.Errorf("failed to RETR the path: %v", err)
 	}
 	defer r.Close()
 
 	buf, err := ioutil.ReadAll(r)
-	return fmt.Sprintf("%x", md5.Sum(buf)), nil
+	return fmt.Sprintf("%x", md5.Sum(buf)), buf, nil
 }
 
 func main() {
 	flag.Parse()
 	if *bucket == "" || *archive == "" {
-		log.Fatal("set archive and bucket, or there is nothing to do")
+		glog.Fatal("set archive and bucket, or there is nothing to do")
 	}
 
 	// Clean up the archive (ftp://blah.org/floop/) to be a host/directory.
@@ -131,49 +267,20 @@ func main() {
 	dir = strings.Join(parts[1:], "/")
 	dir = "/" + dir
 
-	// Open the ftp connection.
+	// Create a client, and start processing.
 	// NOTE: Consider spawning N goroutines as fetch processors for the
 	//       pathnames which are output from Walk().
 	ctx := context.Background()
-	c, err := new(ctx, *aUser, *aPasswd, site, *bucket)
+	c, err := new(ctx, *aUser, *aPasswd, site, *bucket, *grpcService, *svcAccountKey)
 	if err != nil {
-		log.Fatalf("failed to create the client: %v", err)
+		glog.Fatalf("failed to create the client: %v", err)
 	}
 
-	// Move this Walk activity to a dedicated go-routine,
-	// feed collected filenames to a channel of evalFile, evaluate the channel
-	// with a set of go-routines collecting information from cloud-storage.
-	// to verify whether or not the file must be uploaded to storage.
-	w := c.fc.Walk(dir)
-	// Walk the directory tree, stat/evaluate files, else continue walking.
-	i := 0
-	for {
-		if !w.Next() {
-			fmt.Println("Next returned false")
-			return
-		}
-		e := w.Stat()
-		if e.Type == ftp.EntryTypeFile && strings.HasPrefix(e.Name, "updates") {
-			fmt.Printf("Found file: %v = sz: %d\n", w.Path(), e.Size)
-			i++
-			if i >= 10 {
-				fmt.Println("Got to 10000")
-				break
-			}
-		}
-	}
+	// Start the FTP walk, then read from the channel and evaluate each file.
+	go c.ftpWalk(dir)
+	c.readChannel(ctx)
 
-	// Request one object: (via ObjectHandle that allows access to attrs)
-	//   /bgpdata/2022.01/UPDATES/updates.20220101.0000.bz2
-	// reported md5: 2723e683865e5d22e12504e3fbede7c6
-	// routeviews-archives/bgpdata/2022.01/UPDATES/updates.20220101.0000.bz2
-	cksum, err := c.getMD5cloud(ctx, "bgpdata/2022.01/UPDATES/updates.20220101.0000.bz2")
-	fmt.Printf("MD5: %s\nKNN: 2723e683865e5d22e12504e3fbede7c6\n", cksum)
-	fSum, err := c.getMD5ftp("bgpdata/2022.01/UPDATES/updates.20220101.0000.bz2")
-	if err != nil {
-		log.Fatalf("failed to get md5 sum over ftp: %v", err)
-	}
-	fmt.Printf("FTP: %s\n", fSum)
-
-	// Download the file from FTP, compare MD5.
+	// All operations ended, close the external services.
+	glog.Info("Ending transmission/comparison.")
+	c.close()
 }
