@@ -29,6 +29,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/idtoken"
+	"google.golang.org/appengine/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/oauth"
@@ -182,6 +183,7 @@ func (c *client) ftpWalk(dir string) {
 		e := w.Stat()
 		if e.Type == ftp.EntryTypeFile && strings.HasPrefix(e.Name, "updates") {
 			// Add the file to the channel, for evaluation and potential copy.
+			log.Infof("Sending file for eval: %s", w.Path())
 			c.ch <- &evalFile{name: strings.TrimLeft(w.Path(), "/")}
 		}
 	}
