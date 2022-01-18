@@ -23,6 +23,12 @@ Create a new key for the service-account, download the JSON format key material.
 Store this key material securely on the machine which will be performing the
 synchronization.
 
+Grant the service account the following roles/permissions:
+
+   * Cloud Run Invoker - configured in the CloudRun instance permissions.
+   * Storage Object Creator - configured in IAM permissions.
+   * Storage Object Viewer - configured in IAM permissions.
+
 ## Run the Upload Process
 
 Run the program, provide the bucket and ftp archive as flags, provide the key
