@@ -38,6 +38,8 @@ const (
 	dialTimeout = 5 * time.Second
 	// Max message size set to 50mb.
 	maxMsgSize = 50 * 1024 * 1024
+	// Max ftp errors before exiting the process.
+	maxFTPErrs = 50
 )
 
 var (
@@ -61,6 +63,8 @@ type client struct {
 	bucket  string
 	// A channel which will contain
 	ch chan *evalFile
+	// Metrics, collect copied vs not for exit reporting.
+	metrics map[string]int
 }
 
 type evalFile struct {
@@ -156,6 +160,7 @@ func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, svcAcco
 		fc:      f,
 		bucket:  bucket,
 		ch:      make(chan *evalFile),
+		metrics: map[string]int{"sync": 0, "skip": 0, "error": 0},
 	}, nil
 }
 
@@ -174,7 +179,7 @@ func (c *client) ftpWalk(dir string) {
 	w := c.fc.Walk(dir)
 	// Walk the directory tree, stat/evaluate files, else continue walking.
 	for {
-		if !w.Next() {
+		if !w.Next() && w.Err() != nil {
 			glog.Error("Next returned false, closing channel and returning")
 			close(c.ch)
 			return
@@ -191,6 +196,7 @@ func (c *client) ftpWalk(dir string) {
 // readChannel reads FTP file results from a channel, collects and compares MD5 checksums
 // and uploads files to cloud-storage if mismatches occur.
 func (c *client) readChannel(ctx context.Context) {
+	errs := 0
 	for {
 		ef := <-c.ch
 		// Exit if ef is nil, because the channel closed.
@@ -198,34 +204,51 @@ func (c *client) readChannel(ctx context.Context) {
 			glog.Error("Channel closed, exiting readChannel.")
 			break
 		}
+
 		fn := strings.TrimLeft(ef.name, "/")
 		csSum, err := c.getMD5cloud(ctx, fn)
 		if err != nil {
+			// If the object isn't there, it'll need to be uploaded.
 			if strings.Contains(err.Error(), "object doesn't exist") {
 				csSum = ""
 			} else {
+				// Any failure except 'does not exist', the cloud connection
+				// is likely broken, fail and try restarting.
 				glog.Fatalf("failed to get cloud md5 for file(%s): %v", fn, err)
 			}
 		}
+
 		fSum, fc, err := c.getMD5ftp(ef.name)
 		if err != nil {
+			if errs < maxFTPErrs {
+				glog.Infof("error getting md5(%s): %v", ef.name, err)
+				errs++
+				continue
+			}
+			// Enough failures have happened, exit and restart.
 			glog.Fatalf("failed to get ftp md5 for file(%s): %v", ef.name, err)
 		}
-		if csSum != fSum {
-			glog.Infof("Archiving file(%s) size(%d) to cloud.", ef.name, len(fc))
-			req := pb.FileRequest{
-				Filename: ef.name,
-				Content:  fc,
-				Md5Sum:   fSum,
-				Project:  pb.FileRequest_ROUTEVIEWS,
-			}
-			resp, err := c.gClient.FileUpload(ctx, &req)
-			if err != nil {
-				glog.Errorf("failed uploading(%s) to grpcService: %v", ef.name, err)
-				return
-			}
-			glog.Infof("File upload status: %s", resp.GetStatus())
+
+		if csSum == fSum {
+			c.metrics["skip"]++
+			continue
 		}
+
+		glog.Infof("Archiving file(%s) size(%d) to cloud.", ef.name, len(fc))
+		req := pb.FileRequest{
+			Filename: ef.name,
+			Content:  fc,
+			Md5Sum:   fSum,
+			Project:  pb.FileRequest_ROUTEVIEWS,
+		}
+		resp, err := c.gClient.FileUpload(ctx, &req)
+		if err != nil {
+			glog.Errorf("failed uploading(%s) to grpcService: %v", ef.name, err)
+			c.metrics["error"]++
+			return
+		}
+		c.metrics["sync"]++
+		glog.Infof("File upload status: %s", resp.GetStatus())
 	}
 }
 
@@ -284,4 +307,8 @@ func main() {
 	// All operations ended, close the external services.
 	glog.Info("Ending transmission/comparison.")
 	c.close()
+	fmt.Println("Metrics for file sync activity:")
+	for k, v := range c.metrics {
+		fmt.Printf("%s: %d\n", k, v)
+	}
 }
