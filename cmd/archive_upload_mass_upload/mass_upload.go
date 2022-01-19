@@ -178,18 +178,18 @@ func (c *client) ftpWalk(dir string) {
 	// Start the walk activity.
 	w := c.fc.Walk(dir)
 	// Walk the directory tree, stat/evaluate files, else continue walking.
-	for {
-		if !w.Next() && w.Err() != nil {
-			glog.Error("Next returned false, closing channel and returning")
-			close(c.ch)
-			return
-		}
+	for w.Next() {
 		e := w.Stat()
 		if e.Type == ftp.EntryTypeFile && strings.HasPrefix(e.Name, "updates") {
 			// Add the file to the channel, for evaluation and potential copy.
 			glog.Infof("Sending file for eval: %s", w.Path())
 			c.ch <- &evalFile{name: strings.TrimLeft(w.Path(), "/")}
 		}
+	}
+	if w.Err() != nil {
+		glog.Error("Next returned false, closing channel and returning")
+		close(c.ch)
+		return
 	}
 }
 
