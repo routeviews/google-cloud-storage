@@ -40,6 +40,8 @@ const (
 	maxMsgSize = 50 * 1024 * 1024
 	// Max ftp errors before exiting the process.
 	maxFTPErrs = 50
+	// Channel buffer size for the Walk() function to fill.
+	maxWalk = 5000
 )
 
 var (
@@ -165,7 +167,7 @@ func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, saKey s
 		bh:      bh,
 		fc:      f,
 		bucket:  bucket,
-		ch:      make(chan *evalFile),
+		ch:      make(chan *evalFile, maxWalk),
 		metrics: map[string]int{"sync": 0, "skip": 0, "error": 0},
 	}, nil
 }
