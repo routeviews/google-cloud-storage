@@ -3,8 +3,8 @@ pipeline {
     agent { label 'nts' }
 
     environment {
-        GITHUB_PROJECT='marrowc'
-        GITHUB_REPO='rv'
+        GITHUB_PROJECT = 'routeviews'
+        GITHUB_REPO = 'google-cloud-storage'
     }
 
     stages {
@@ -33,7 +33,11 @@ pipeline {
             steps {
                 // Finalize the PyPI deployment!
                 withPythonEnv('python3') {
-                    withCredentials([usernamePassword(credentialsId: 'nts_pypi', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'nts_pypi',
+                        passwordVariable: 'PASS',
+                        usernameVariable: 'USER'
+                    )]) {
                         sh 'pip install twine'
                         sh 'twine upload dist/* -u \$USER -p \$PASS --verbose'
                     }

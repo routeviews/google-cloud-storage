@@ -5,18 +5,30 @@
 This project provides a (Python) client that takes a file and sends it to the Google Cloud 
 Storage solution for [the Google+RouteViews project](https://github.com/routeviews/google-cloud-storage).
 
-## Installation and Usage
+## Install
 
 This solution is deployed to PyPI, so you can install it simply using the command `pip install 
 routeviews-google-upload`.
 
     pip install routeviews-google-upload
 
+## Examples
+
 The simplest invocation of this tool is to upload a file to a target gRPC server.
 
     routeviews-google-upload --dest https://grpc.routeviews.org --file /bgpdata/2021.03/UPDATES/update.20210331.2345.bz2
 
 > Run the command with the `--help` argument to see all the expected and available arguments.
+
+### Google Cloud Storage server, with Authentication
+
+If the targeted gRPC server is backed by a Google Cloud Storage (GCS) instance, it may require authentication.
+In this case, follow the [Setting up authentication guide](https://cloud.google.com/storage/docs/reference/libraries#setting_up_authentication) prior to running this tool.
+
+    export GOOGLE_APPLICATION_CREDENTIALS="<KEY_PATH>"
+    routeviews-google-upload --dest https://grpc.routeviews.org --file /bgpdata/2021.03/UPDATES/update.20210331.2345.bz2
+
+
 
 ### Local Debug::Echo server
 
