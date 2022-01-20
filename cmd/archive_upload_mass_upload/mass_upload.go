@@ -56,6 +56,9 @@ var (
 )
 
 type client struct {
+	site    string
+	user    string
+	passwd  string
 	gClient pb.RVClient
 	bs      *storage.Client
 	bh      *storage.BucketHandle
@@ -154,6 +157,9 @@ func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, saKey s
 	}
 
 	return &client{
+		site:    site,
+		user:    aUser,
+		passwd:  aPasswd,
 		gClient: pb.NewRVClient(gc),
 		bs:      c,
 		bh:      bh,
@@ -203,6 +209,18 @@ func (c *client) ftpWalk(dir string) {
 // and uploads files to cloud-storage if mismatches occur.
 func (c *client) readChannel(ctx context.Context) {
 	errs := 0
+	// Open a new, bespoke FTP connection, so overlapping
+	// command/data channel problems are avoided.
+	f, err := connectFtp(c.site)
+	if err != nil {
+		glog.Errorf("failed to open new FTP connection: %v", err)
+		return
+	}
+	if err := f.Login(c.user, c.passwd); err != nil {
+		glog.Errorf("failed to login to FTP site: %v", err)
+		return
+	}
+
 	for {
 		ef, ok := <-c.ch
 		// Exit if ef is nil, because the channel closed.
@@ -217,7 +235,7 @@ func (c *client) readChannel(ctx context.Context) {
 			csSum = ""
 		}
 
-		fSum, fc, err := c.md5FromFTP(ef.name)
+		fSum, fc, err := c.md5FromFTP(ef.name, f)
 		if err != nil {
 			if errs < maxFTPErrs {
 				glog.Infof("error getting md5(%s): %v", ef.name, err)
@@ -259,8 +277,8 @@ func (c *client) md5FromGCS(ctx context.Context, path string) (string, error) {
 	return hex.EncodeToString(attrs.MD5), nil
 }
 
-func (c *client) md5FromFTP(path string) (string, []byte, error) {
-	r, err := c.fc.Retr(path)
+func (c *client) md5FromFTP(path string, fc *ftp.ServerConn) (string, []byte, error) {
+	r, err := fc.Retr(path)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to RETR the path: %v", err)
 	}
