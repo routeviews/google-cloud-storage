@@ -8,6 +8,7 @@ require (
 	github.com/fsouza/fake-gcs-server v1.31.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/google/go-cmp v0.5.6
+	github.com/jlaffaye/ftp v0.0.0-20211117213618-11820403398b // indirect
 	github.com/osrg/gobgp v2.0.0+incompatible
 	github.com/routeviews/google-cloud-storage/proto/rv v0.0.0-00010101000000-000000000000
 	github.com/sirupsen/logrus v1.8.1
