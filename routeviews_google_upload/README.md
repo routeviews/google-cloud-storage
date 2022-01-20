@@ -22,6 +22,8 @@ The simplest invocation of this tool is to upload a file to a target gRPC server
 
 ### Google Cloud Storage server, with Authentication
 
+> WARNING: This workflow is yet to be tested/validated!
+
 If the targeted gRPC server is backed by a Google Cloud Storage (GCS) instance, it may require authentication.
 In this case, follow the [Setting up authentication guide](https://cloud.google.com/storage/docs/reference/libraries#setting_up_authentication) prior to running this tool.
 
