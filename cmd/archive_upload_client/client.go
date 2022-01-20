@@ -25,7 +25,7 @@ import (
 
 const (
 	// Max message size set to 50mb.
-	maxMsgSize = 50 * 1024 * 1024
+	maxMsgSize = 512 * 1024 * 1024
 )
 
 var (

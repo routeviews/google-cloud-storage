@@ -37,7 +37,7 @@ import (
 const (
 	dialTimeout = 5 * time.Second
 	// Max message size set to 50mb.
-	maxMsgSize = 50 * 1024 * 1024
+	maxMsgSize = 512 * 1024 * 1024
 	// Max ftp errors before exiting the process.
 	maxFTPErrs = 50
 	// Channel buffer size for the Walk() function to fill.
