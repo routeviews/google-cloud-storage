@@ -128,7 +128,7 @@ func newGRPC(ctx context.Context, host, saPath string) (*grpc.ClientConn, error)
 	return grpc.Dial(host, opts...)
 }
 
-func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, svcAccountKey string) (*client, error) {
+func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, saKey string) (*client, error) {
 	f, err := connectFtp(site)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to the ftp site(%v): %v", site, err)
@@ -148,7 +148,7 @@ func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, svcAcco
 	bh := c.Bucket(bucket)
 
 	// Create a new upload service client.
-	gc, err := newGRPC(ctx, grpcService, svcAccountKey)
+	gc, err := newGRPC(ctx, grpcService, saKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC client: %v", err)
 	}
@@ -204,27 +204,20 @@ func (c *client) ftpWalk(dir string) {
 func (c *client) readChannel(ctx context.Context) {
 	errs := 0
 	for {
-		ef := <-c.ch
+		ef, ok := <-c.ch
 		// Exit if ef is nil, because the channel closed.
-		if ef == nil {
+		if !ok {
 			glog.Error("Channel closed, exiting readChannel.")
 			break
 		}
 
 		fn := strings.TrimLeft(ef.name, "/")
-		csSum, err := c.getMD5cloud(ctx, fn)
+		csSum, err := c.md5FromGCS(ctx, fn)
 		if err != nil {
-			// If the object isn't there, it'll need to be uploaded.
-			if strings.Contains(err.Error(), "object doesn't exist") {
-				csSum = ""
-			} else {
-				// Any failure except 'does not exist', the cloud connection
-				// is likely broken, fail and try restarting.
-				glog.Fatalf("failed to get cloud md5 for file(%s): %v", fn, err)
-			}
+			csSum = ""
 		}
 
-		fSum, fc, err := c.getMD5ftp(ef.name)
+		fSum, fc, err := c.md5FromFTP(ef.name)
 		if err != nil {
 			if errs < maxFTPErrs {
 				glog.Infof("error getting md5(%s): %v", ef.name, err)
@@ -258,7 +251,7 @@ func (c *client) readChannel(ctx context.Context) {
 	}
 }
 
-func (c *client) getMD5cloud(ctx context.Context, path string) (string, error) {
+func (c *client) md5FromGCS(ctx context.Context, path string) (string, error) {
 	attrs, err := c.bh.Object(path).Attrs(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to get attrs for obj: %v", err)
@@ -266,7 +259,7 @@ func (c *client) getMD5cloud(ctx context.Context, path string) (string, error) {
 	return hex.EncodeToString(attrs.MD5), nil
 }
 
-func (c *client) getMD5ftp(path string) (string, []byte, error) {
+func (c *client) md5FromFTP(path string) (string, []byte, error) {
 	r, err := c.fc.Retr(path)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to RETR the path: %v", err)
