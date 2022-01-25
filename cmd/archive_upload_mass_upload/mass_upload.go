@@ -239,12 +239,12 @@ func (c *client) readChannel(ctx context.Context) {
 			break
 		}
 
+		fn := strings.TrimLeft(ef.name, "/")
 		// If the file doesn't have UPDATES/updates do not process further.
 		if !strings.Contains(fn, "UPDATES/updates") {
 			continue
 		}
 
-		fn := strings.TrimLeft(ef.name, "/")
 		csSum, err := c.md5FromGCS(ctx, fn)
 		if err != nil {
 			csSum = ""
@@ -334,7 +334,7 @@ func main() {
 
 	// Start the readChannel threads.
 	for i := 0; i < *threads; i++ {
-		go readChannel(ctx)
+		go c.readChannel(ctx)
 	}
 
 	// Start the FTP walk, then read from the channel and evaluate each file.
@@ -342,7 +342,7 @@ func main() {
 	// c.readChannel(ctx)
 
 	// Wait on all readChannel routines to finish.
-	g.wg.Wait()
+	c.wg.Wait()
 
 	// All operations ended, close the external services.
 	glog.Info("Ending transmission/comparison.")
