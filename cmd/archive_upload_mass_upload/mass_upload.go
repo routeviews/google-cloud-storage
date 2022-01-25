@@ -194,6 +194,7 @@ func (c *client) ftpWalk(dir string) {
 	}
 	if w.Err() != nil {
 		glog.Errorf("Next returned false, closing channel and returning: %v", w.Err())
+		glog.Errorf("Current working directory: %s", w.Path())
 		close(c.ch)
 		return
 	}
