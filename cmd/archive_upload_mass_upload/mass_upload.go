@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/storage"
@@ -55,6 +56,7 @@ var (
 	// gRPC endpoint (https url) to upload replacement content to and credentials file, if necessary.
 	grpcService   = flag.String("uploadURL", "rv-server-cgfq4yjmfa-uc.a.run.app:443", "Upload service host:port.")
 	svcAccountKey = flag.String("saKey", "", "File location of service account key, if required.")
+	threads       = flag.Int("threads", 10, "Number of ftp/cloud processing threads.")
 )
 
 type client struct {
@@ -66,8 +68,10 @@ type client struct {
 	bh      *storage.BucketHandle
 	fc      *ftp.ServerConn
 	bucket  string
-	// A channel which will contain
+	// A buffered channel which will contain files to possibly download.
 	ch chan *evalFile
+	// A WaitGroup used to synchronize ending the reading jobs/processing.
+	wg sync.WaitGroup
 	// Metrics, collect copied vs not for exit reporting.
 	metrics map[string]int
 }
@@ -133,7 +137,7 @@ func newGRPC(ctx context.Context, host, saPath string) (*grpc.ClientConn, error)
 	return grpc.Dial(host, opts...)
 }
 
-func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, saKey string) (*client, error) {
+func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, saKey string, threads int) (*client, error) {
 	f, err := connectFtp(site)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to the ftp site(%v): %v", site, err)
@@ -158,6 +162,9 @@ func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, saKey s
 		return nil, fmt.Errorf("failed to create gRPC client: %v", err)
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(threads)
+
 	return &client{
 		site:    site,
 		user:    aUser,
@@ -168,6 +175,7 @@ func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, saKey s
 		fc:      f,
 		bucket:  bucket,
 		ch:      make(chan *evalFile, maxWalk),
+		wg:      wg,
 		metrics: map[string]int{"sync": 0, "skip": 0, "error": 0},
 	}, nil
 }
@@ -188,13 +196,9 @@ func (c *client) ftpWalk(dir string) {
 
 	// Walk the directory tree, stat/evaluate files, else continue walking.
 	for w.Next() {
-		glog.Infof("Eval Path: %s", w.Path())
 		e := w.Stat()
-		if e.Type == ftp.EntryTypeFolder && strings.HasSuffix(w.Path(), "RIBS") {
-			glog.Info("Skipping RIBS directory")
-			continue
-		}
-		if e.Type == ftp.EntryTypeFile && strings.HasPrefix(e.Name, "updates") {
+		// The only check prior to sending the file for collection is that is a file.
+		if e.Type == ftp.EntryTypeFile {
 			// Add the file to the channel, for evaluation and potential copy.
 			glog.Infof("Sending file for eval: %s", w.Path())
 			c.ch <- &evalFile{name: strings.TrimLeft(w.Path(), "/")}
@@ -203,6 +207,7 @@ func (c *client) ftpWalk(dir string) {
 	if w.Err() != nil {
 		glog.Errorf("Next returned false, closing channel and returning: %v", w.Err())
 		glog.Errorf("Current working directory: %s", w.Path())
+		// Close the channel, the readChannel threads should continue to drain this channel.
 		close(c.ch)
 		return
 	}
@@ -211,6 +216,7 @@ func (c *client) ftpWalk(dir string) {
 // readChannel reads FTP file results from a channel, collects and compares MD5 checksums
 // and uploads files to cloud-storage if mismatches occur.
 func (c *client) readChannel(ctx context.Context) {
+	defer c.wg.Done()
 	errs := 0
 	// Open a new, bespoke FTP connection, so overlapping
 	// command/data channel problems are avoided.
@@ -226,13 +232,18 @@ func (c *client) readChannel(ctx context.Context) {
 
 	for {
 		ef, ok := <-c.ch
-		// Exit if ef is nil, because the channel closed.
+		// Exit if ok is false, this is the 'channel closed' signal.
 		if !ok {
 			glog.Error("Channel closed, exiting readChannel.")
 			break
 		}
 
 		fn := strings.TrimLeft(ef.name, "/")
+		// If the file doesn't have UPDATES/updates do not process further.
+		if !strings.Contains(fn, "UPDATES/updates") {
+			continue
+		}
+
 		csSum, err := c.md5FromGCS(ctx, fn)
 		if err != nil {
 			csSum = ""
@@ -315,14 +326,22 @@ func main() {
 	// NOTE: Consider spawning N goroutines as fetch processors for the
 	//       pathnames which are output from Walk().
 	ctx := context.Background()
-	c, err := new(ctx, *aUser, *aPasswd, site, *bucket, *grpcService, *svcAccountKey)
+	c, err := new(ctx, *aUser, *aPasswd, site, *bucket, *grpcService, *svcAccountKey, *threads)
 	if err != nil {
 		glog.Fatalf("failed to create the client: %v", err)
 	}
 
+	// Start the readChannel threads.
+	for i := 0; i < *threads; i++ {
+		go c.readChannel(ctx)
+	}
+
 	// Start the FTP walk, then read from the channel and evaluate each file.
 	go c.ftpWalk(dir)
-	c.readChannel(ctx)
+	// c.readChannel(ctx)
+
+	// Wait on all readChannel routines to finish.
+	c.wg.Wait()
 
 	// All operations ended, close the external services.
 	glog.Info("Ending transmission/comparison.")
