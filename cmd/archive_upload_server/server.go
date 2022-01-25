@@ -20,6 +20,7 @@ import (
 	"os"
 
 	"cloud.google.com/go/storage"
+	"github.com/golang/glog"
 	log "github.com/golang/glog"
 	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
 	pb "github.com/routeviews/google-cloud-storage/proto/rv"
@@ -51,7 +52,7 @@ type rvServer struct {
 	pb.UnimplementedRVServer
 }
 
-// setProjectMeta set project source in the metadata of an GCS object. The
+// setProjectMeta set project source in the metadata of a GCS object. The
 // object must've existed when we set metadata.
 func (r rvServer) setProjectMeta(ctx context.Context, obj string, proj pb.FileRequest_Project) error {
 	// Set metadata once the object is created.
@@ -62,6 +63,7 @@ func (r rvServer) setProjectMeta(ctx context.Context, obj string, proj pb.FileRe
 	}); err != nil {
 		return fmt.Errorf("failed to set metadata '%s:%s': %v", converter.ProjectMetadataKey, proj.String(), err)
 	}
+	glog.Infof("Set metadata for object: %s", obj)
 	return nil
 }
 
@@ -73,6 +75,7 @@ func (r rvServer) fileStore(ctx context.Context, fn string, b []byte) error {
 	if _, err := io.Copy(wc, bytes.NewReader(b)); err != nil {
 		return fmt.Errorf("failed copying content to destination: %s/%s: %v", r.bucket, fn, err)
 	}
+	glog.Infof("Stored object to GCS: %s", fn)
 	return nil
 }
 
@@ -95,6 +98,8 @@ func (r rvServer) handleDataFile(ctx context.Context, proj pb.FileRequest_Projec
 		return resp, err
 	}
 	resp.Status = pb.FileResponse_SUCCESS
+
+	glog.Infof("Finished processing datafile: %s", fn)
 	return resp, nil
 }
 
