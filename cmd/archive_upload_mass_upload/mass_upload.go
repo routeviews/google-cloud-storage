@@ -41,6 +41,8 @@ const (
 	maxMsgSize = 512 * 1024 * 1024
 	// Max ftp errors before exiting the process.
 	maxFTPErrs = 50
+	// Max grpc errors before processing stops. (NOTE: this is evaluated per thread)
+	maxGrpcErrs = 50
 	// Channel buffer size for the Walk() function to fill.
 	maxWalk = 5000
 )
@@ -226,7 +228,9 @@ func (c *client) metric(k string) {
 // and uploads files to cloud-storage if mismatches occur.
 func (c *client) readChannel(ctx context.Context) {
 	defer c.wg.Done()
-	errs := 0
+	ftpErrs := 0
+	grpcErrs := 0
+
 	// Open a new, bespoke FTP connection, so overlapping
 	// command/data channel problems are avoided.
 	f, err := connectFtp(c.site)
@@ -260,9 +264,9 @@ func (c *client) readChannel(ctx context.Context) {
 
 		fSum, fc, err := c.md5FromFTP(ef.name, f)
 		if err != nil {
-			if errs < maxFTPErrs {
+			if ftpErrs < maxFTPErrs {
 				glog.Infof("error getting md5(%s): %v", ef.name, err)
-				errs++
+				ftpErrs++
 				continue
 			}
 			// Enough failures have happened, exit and restart.
@@ -285,7 +289,11 @@ func (c *client) readChannel(ctx context.Context) {
 		if err != nil {
 			glog.Errorf("failed uploading(%s) to grpcService: %v", ef.name, err)
 			c.metric("error")
-			return
+			if grpcErrs >= maxGrpcErrs {
+				return
+			}
+			grpcErrs++
+			continue
 		}
 		c.metric("sync")
 		glog.Infof("File upload status: %s", resp.GetStatus())
