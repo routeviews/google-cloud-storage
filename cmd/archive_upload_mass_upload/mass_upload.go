@@ -196,7 +196,6 @@ func (c *client) ftpWalk(dir string) {
 
 	// Walk the directory tree, stat/evaluate files, else continue walking.
 	for w.Next() {
-		glog.Infof("Eval Path: %s", w.Path())
 		e := w.Stat()
 		// The only check prior to sending the file for collection is that is a file.
 		if e.Type == ftp.EntryTypeFile {
