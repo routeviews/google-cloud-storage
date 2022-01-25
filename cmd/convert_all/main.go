@@ -1,30 +1,63 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 
 	"cloud.google.com/go/storage"
 	"github.com/golang/glog"
-	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
+	"google.golang.org/api/idtoken"
 	"google.golang.org/api/iterator"
 )
 
 var (
+	host       = flag.String("host", "", "HTTP URL of the converter address.")
+	saKey      = flag.String("sa_key", "", "Service account private key.")
 	srcBucket  = flag.String("src_bucket", "routeviews-archives", "GCS bucket that saves all MRT archives.")
-	dstBucket  = flag.String("dst_bucket", "routeviews-bigquery", "GCS bucket that saves all parsed BGP updates.")
 	rootDir    = flag.String("root_dir", "", "The directory that the converter should traverse from the source bucket. Empty means the root of the bucket.")
 	numWorkers = flag.Int("num_workers", 4, "Number of concurrent workers to perform conversions.")
 )
+
+const taskMsgFormat = `{
+	"message": {
+	  "attributes": {
+		"eventType": "OBJECT_METADATA_UPDATE",
+		"objectId": "%s",
+		"bucketId": "%s"
+	  }
+	}
+  }`
 
 type conMgr struct {
 	ConJobs chan string
 }
 
-func newConMgr(ctx context.Context, cli *storage.Client, srcBkt, dstBkt string, w int) *conMgr {
+func conReq(cli *http.Client, host, obj, bkt string) error {
+	resp, err := cli.Post(host, "application/json", bytes.NewBuffer(
+		[]byte(fmt.Sprintf(taskMsgFormat, obj, bkt))))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	msg, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if string(msg) != "" {
+		return fmt.Errorf(string(msg))
+	}
+	return nil
+}
+
+func newConMgr(ctx context.Context, cli *http.Client, host, srcBkt string, w int) *conMgr {
 	m := &conMgr{
 		ConJobs: make(chan string),
 	}
+
 	for i := 0; i < w; i++ {
 		go func() {
 			for {
@@ -33,16 +66,11 @@ func newConMgr(ctx context.Context, cli *storage.Client, srcBkt, dstBkt string, 
 					return
 				}
 
-				glog.Infof("Converting gs://%s%s", srcBkt, obj)
-				err := converter.ProcessMRTArchive(ctx, cli, &converter.Config{
-					SrcBucket: srcBkt,
-					DstBucket: dstBkt,
-					SrcObject: obj,
-				})
-				if err != nil {
-					glog.Fatalf("cannot convert gs://%s%s: %v", srcBkt, obj, err)
+				fmt.Printf("Converting gs://%s/%s\n", srcBkt, obj)
+				if err := conReq(cli, host, obj, srcBkt); err != nil {
+					glog.Fatal(err)
 				}
-				glog.Infof("gs://%s%s converted", srcBkt, obj)
+				fmt.Printf("gs://%s/%s converted\n", srcBkt, obj)
 			}
 		}()
 	}
@@ -53,21 +81,24 @@ func main() {
 	flag.Parse()
 	ctx := context.Background()
 
-	cli, err := storage.NewClient(ctx)
+	sc, err := storage.NewClient(ctx)
 	if err != nil {
 		glog.Exit(err)
 	}
 
-	mgr := newConMgr(ctx, cli, *srcBucket, *dstBucket, *numWorkers)
+	hc, err := idtoken.NewClient(ctx, *host, idtoken.WithCredentialsFile(*saKey))
+	if err != nil {
+		glog.Exit(err)
+	}
+
+	mgr := newConMgr(ctx, hc, *host, *srcBucket, *numWorkers)
 	query := &storage.Query{Prefix: *rootDir}
-	it := cli.Bucket(*srcBucket).Objects(ctx, query)
-	objCount := 0
+	it := sc.Bucket(*srcBucket).Objects(ctx, query)
 	for {
 		attrs, err := it.Next()
 		if err == iterator.Done {
 			break
 		}
-		objCount++
 		if err != nil {
 			glog.Fatal(err)
 		}

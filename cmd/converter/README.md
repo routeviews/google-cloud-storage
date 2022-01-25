@@ -3,14 +3,25 @@
 ### Deployment
 
 1.  Build the image from the root directory. (TODO: use docker-decompose.yaml)
-    -   In root directory, `docker build -f cmd/converter/Dockerfile . -t
-        [IMAGE_URL]`
-    -   Don't forget to upload it to the registries: `docker push
-        [IMAGE_URL]`
+    -   In root directory, 
+    ```shell
+    $   docker build -f cmd/converter/Dockerfile . -t us-docker.pkg.dev/public-routing-data-backup/cloudrun/rv-converter:latest
+    ```
+    -   Don't forget to upload it to the registries: 
+    ```shell
+    docker push
+        us-docker.pkg.dev/public-routing-data-backup/cloudrun/rv-converter:latest`
+    ```
 2.  Deploy the image by setting the output bucket `BIGQUERY_BUCKET` for
     converted updates.
-    -   Example: `gcloud run deploy [SERVICE] --image [IMAGE_URL] --cpu 2
-        --memory 4Gi --update-env-vars BIGQUERY_BUCKET=[BUCKET]`
+    -   Example:
+    ```shell
+    $   gcloud run deploy rv-converter \ 
+        --image us-docker.pkg.dev/public-routing-data-backup/cloudrun/rv-converter:latest \
+        --cpu 2 --memory 4Gi \
+        --concurrency 2 \
+        --update-env-vars BIGQUERY_BUCKET=routeviews-bigquery
+    ```
 3.  **[Only need once]** Hook up a PubSub channel with the Cloud Run service
     through PubSub (see
     [instructions](https://cloud.google.com/run/docs/triggering/pubsub-push)).
