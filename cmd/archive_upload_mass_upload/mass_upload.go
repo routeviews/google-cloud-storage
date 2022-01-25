@@ -72,6 +72,8 @@ type client struct {
 	ch chan *evalFile
 	// A WaitGroup used to synchronize ending the reading jobs/processing.
 	wg sync.WaitGroup
+	// A mutex to protect the map for update processing.
+	mu sync.Mutex
 	// Metrics, collect copied vs not for exit reporting.
 	metrics map[string]int
 }
@@ -176,6 +178,7 @@ func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, saKey s
 		bucket:  bucket,
 		ch:      make(chan *evalFile, maxWalk),
 		wg:      wg,
+		mu:      sync.Mutex{},
 		metrics: map[string]int{"sync": 0, "skip": 0, "error": 0},
 	}, nil
 }
@@ -211,6 +214,12 @@ func (c *client) ftpWalk(dir string) {
 		close(c.ch)
 		return
 	}
+}
+
+func (c *client) metric(k string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.metrics[k]++
 }
 
 // readChannel reads FTP file results from a channel, collects and compares MD5 checksums
@@ -261,7 +270,7 @@ func (c *client) readChannel(ctx context.Context) {
 		}
 
 		if csSum == fSum {
-			c.metrics["skip"]++
+			c.metric("skip")
 			continue
 		}
 
@@ -275,10 +284,10 @@ func (c *client) readChannel(ctx context.Context) {
 		resp, err := c.gClient.FileUpload(ctx, &req)
 		if err != nil {
 			glog.Errorf("failed uploading(%s) to grpcService: %v", ef.name, err)
-			c.metrics["error"]++
+			c.metric("error")
 			return
 		}
-		c.metrics["sync"]++
+		c.metric("sync")
 		glog.Infof("File upload status: %s", resp.GetStatus())
 	}
 }
