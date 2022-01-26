@@ -83,6 +83,7 @@ func (s *server) archiveUploadHandler(w http.ResponseWriter, r *http.Request) {
 			"dstBucket": s.dstBucket,
 			"object":    msg.Message.Attributes.Object,
 		}).Errorf("converter.ProcessMRTArchive: %v", err)
+		w.Write([]byte(fmt.Sprintf("converter.ProcessMRTArchive: %v", err)))
 		return
 	}
 	log.WithFields(log.Fields{
