@@ -21,7 +21,8 @@ Deployed to GCP CloudRun, from the project's Docker image store.
   ```shell
   $ gcloud run deploy  rv-server \
             --image us-docker.pkg.dev/public-routing-data-backup/cloudrun/rv-server:latest \
-            --use-http2 --no-allow-unauthenticated
+            --use-http2 --no-allow-unauthenticated \
+            --memory 1G
   ```
 
 4. Reserve an IPv4/6 address for the load balancer (DO THIS ONCE)
