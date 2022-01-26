@@ -355,7 +355,6 @@ func main() {
 
 	// Start the FTP walk, then read from the channel and evaluate each file.
 	go c.ftpWalk(dir)
-	// c.readChannel(ctx)
 
 	// Wait on all readChannel routines to finish.
 	c.wg.Wait()
