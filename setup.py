@@ -27,7 +27,8 @@ setup(name="routeviews-google-upload",
     keywords=['RouteViews', 'Google', 'Cloud', 'Storage', 'Backup', 'Archive'],  # Keywords that define your package best
     entry_points={
         'console_scripts': [
-            'routeviews-google-upload=routeviews_google_upload.__main__:main'
+            'routeviews-google-upload=routeviews_google_upload.__main__:main',
+            'routeviews-google-upload-test-server=routeviews_google_upload.echo_server:serve',
         ]
     },
     install_requires=install_and_setup_requires,

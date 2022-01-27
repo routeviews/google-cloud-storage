@@ -1,38 +1,46 @@
 import argparse
+import logging
 from pkg_resources import get_distribution
-import sys
 
-from routeviews_google_upload import client
-from routeviews_google_upload import echo_server
+import uologging
 
+from routeviews_google_upload.client import Client
+
+
+logger = logging.getLogger(__name__)
 
 def main():
     args = parse_args()
-    run(args)
+    if args.syslog:
+        uologging.init_syslog_logging()
+    try:
+        run(args)
+    except Exception as e:
+        logger.exception(e)
+        raise e
 
 
 def run(args):
-    if args.server:
-        echo_server.serve()
-    else:
-        client.upload(args.dest, args.file, args.to_sql)
+    client = Client(args.dest, args.key_file)
+    client.upload(args.file, args.to_sql)
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     # This tool runs in two modes -- (1) either provide a '--dest' target gRPC server, or (2) provide the '--server' flag.
-    client_or_server = parser.add_mutually_exclusive_group(required=True)
-    client_or_server.add_argument(
+    parser.add_argument(
         '--dest',
-        help="The gRPC server where to send the file (use 'localhost:50051' for local development)")
-    client_or_server.add_argument(
-        '--server', 
-        action='store_true',
-        help='Run a local "DEBUG::ECHO" server (for debugging purposes only).'
+        default='rv-server-cgfq4yjmfa-uc.a.run.app', # TODO, setup a routeviews CNAME then update this.
+        help="The gRPC server where to send the file (use 'localhost:50051' for local development)"
     )
     parser.add_argument(
-        '--file', 
+        '--file',
+        required=True,
         help='The file to be sent. (Required when running as a client)'
+    )
+    parser.add_argument(
+        '--key-file',
+        help='If the destination gRPC server required authentication, provide an appropriate Service Account Key file (JSON).'
     )
     parser.add_argument(
         '--to-sql', 
@@ -44,13 +52,12 @@ def parse_args():
         action='version', 
         version=get_distribution('routeviews_google_upload').version
     )
-    args = parser.parse_args()
-    # When running as a client, a file must be provided.
-    if args.dest and not args.file:
-        parser.print_usage()
-        print(f'Must also provide the `--file` argument when targeting {args.dest}.')
-        sys.exit(-1)
-    return args
+    parser.add_argument(
+        '--syslog',
+        action='store_true',
+        help='Send log messages to syslog (in addition to the console).',
+    )
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
