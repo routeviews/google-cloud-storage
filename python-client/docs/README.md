@@ -54,8 +54,7 @@ Then, in the 'client terminal' window, you can run the upload tool with `--dest 
 
 # For Developers
 
-For developers who are actively developing on this solution, we recommend using a Python virtual environment to manage 
-dependencies and installing the local package in `editable` mode.
+For developers who are actively developing on this solution, we recommend using a Python virtual environment to manage dependencies and installing the local package in `editable` mode.
 
 Install the dependencies that we need into a python virtual environment, `venv`.
 
@@ -67,7 +66,7 @@ Install the dependencies that we need into a python virtual environment, `venv`.
 Now that we have all the needed dependencies, we can generate the gRPC python code that is needed.
 
 > Note: We keep the latest generated protobuf files in our git repo.
-> So, you can skip this step in general.
+> So, you can skip this step in general (unless you are updating the protobuf/gRPC definitions).
     
     cd proto
     make proto_py
@@ -77,32 +76,5 @@ Finally, all the pieces are in place so that we can install the Python client.
     pip install -e .
 
 Now, the `routeviews-google-upload` CLI tools will be available! 
-Any updates made to the source code will be reflected immediately in your shell session.  
 
-## Continuous Integration and Delivery (CICD)
-
-This solution is deployed to PyPI via the [Jenkinsfile](../Jenkinsfile) in this repository. 
-
-Whenever the `main` branch has new changes pushed to it, the Jenkins Pipeline will attempt to deploy those changes to PyPI.
-
-### Version Management
-
-Before trying to deliver a new version of this package to PyPI, update the `version` in [setup.py](../setup.py) (following "Semantic Versioning" scheme) 
-If the version is not updated, the CICD solution will not upload the package to PyPI (and will raise an error).
-
-### Recommended Git workflow
-
-We follow the [GitHub Git Flow](https://guides.github.com/introduction/flow/) for this project.
-This couples nicely with the CICD scheme described above.
-
-### Recommended GitHub Repository Settings
-
-It is useful to leverage a "GitHub Branch protection rule" to help enforce our GitHub Flow.
-The following are some 'protection rules' that we have turned on for this project's repository:
-
- * *Require pull request reviews before merging:* `checked`
-   * *Required approving reviews:* 1
-   * *Require review from Code Owners:* `checked` 
-* *Require status checks to pass before merging:* `checked`
-  * *Require branches to be up to date before merging:* `checked`
-* *Restrict who can push to matching branches:* `checked`
+> As this is installed in editable mode, any updates made to the source code will be reflected immediately in your shell session.

@@ -1,5 +1,6 @@
-import logging
 from hashlib import md5
+import logging
+import os
 
 import grpc
 import google.auth.transport.requests
@@ -14,7 +15,7 @@ from routeviews_google_upload import rv_pb2
 logger = logging.getLogger(__name__)
 
 
-MAX_MESSAGE_SIZE=2000000000  # 2 Gigabytes
+MAX_MESSAGE_SIZE = 2000000000  # 2 Gigabytes
 grpc_max_size_options = [
     ('grpc.max_send_message_length', MAX_MESSAGE_SIZE),
     ('grpc.max_receive_message_length', MAX_MESSAGE_SIZE),
@@ -31,7 +32,7 @@ def setup_secure_channel(server, service_account_file):
     id_credentials = google.oauth2.service_account.IDTokenCredentials.from_service_account_file(
         service_account_file,
         target_audience=f'https://{server}')
-    
+
     # Create an authorized channel, per: https://github.com/salrashid123/grpc_google_id_tokens/blob/f09517fca10fa4b457204ec863502a917efb2a00/python/grpc_client.py
     return google.auth.transport.grpc.secure_authorized_channel(
         target=server,
@@ -48,7 +49,7 @@ def generate_FileRequest(file_path: str, to_sql: bool):
     content = read_bytes(file_path)
     payload = rv_pb2.FileRequest()
     # TODO should we set the filename to the full file_path, or enable overriding the filename?
-    payload.filename = file_path
+    payload.filename = file_path.lstrip(os.sep)
     payload.project = rv_pb2._FILEREQUEST_PROJECT.values_by_name['ROUTEVIEWS'].number
     payload.convert_sql = to_sql
     payload.content = content

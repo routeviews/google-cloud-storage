@@ -17,29 +17,51 @@ pipeline {
             }
         }
 
+        stage('Test') {
+            steps {
+                withPythonEnv('python3') {
+                    dir('python-client') {
+                        testReportFile = 'test_report.xml'
+                        sh "pytest --junitxml=${testReportFile} || true"
+                        junit(
+                            keepLongStdio: true,
+                            healthScleFactor: 100.0,
+                            testResults: testReportFile
+                        )
+                    }
+                }
+            }
+        }
+
         stage('Package') {
             steps {
                 withPythonEnv('python3') {
-                    sh 'python setup.py sdist'
+                    dir('python-client') {
+                        sh 'python setup.py sdist'
+                    }
+                    archiveArtifacts(artifacts: 'dist/*', followSymlinks: false)
                 }
-                archiveArtifacts(artifacts: "dist/*", followSymlinks: false)
             }
         }
 
         stage('Publish to PyPI') {
-            when {  // Only "deploy" if on the 'main' branch
-                expression { return env.BRANCH_NAME == 'main' }
+            when {
+                allOf { // Only deploy main branch, and only if the python-client directory has been updated
+                    branch 'main'
+                    changeset 'python-client/'
+                }
             }
             steps {
-                // Finalize the PyPI deployment!
                 withPythonEnv('python3') {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'nts_pypi',
-                        passwordVariable: 'PASS',
-                        usernameVariable: 'USER'
-                    )]) {
-                        sh 'pip install twine'
-                        sh 'twine upload dist/* -u \$USER -p \$PASS --verbose'
+                    dir('python-client') {
+                        withCredentials([usernamePassword(
+                            credentialsId: 'nts_pypi',
+                            passwordVariable: 'PASS',
+                            usernameVariable: 'USER'
+                        )]) {
+                            sh 'pip install twine'
+                            sh 'twine upload dist/* -u \$USER -p \$PASS --verbose'
+                        }
                     }
                 }
             }
