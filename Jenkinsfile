@@ -1,3 +1,5 @@
+def testReportFile = 'test_report.xml'
+
 pipeline {
     // Run the pipeline on the NTS specific agent
     agent { label 'nts' }
@@ -21,11 +23,10 @@ pipeline {
             steps {
                 withPythonEnv('python3') {
                     dir('python-client') {
-                        testReportFile = 'test_report.xml'
                         sh "pytest --junitxml=${testReportFile} || true"
                         junit(
                             keepLongStdio: true,
-                            healthScleFactor: 100.0,
+                            healthScaleFactor: 100.0,
                             testResults: testReportFile
                         )
                     }
