@@ -14,6 +14,13 @@ from routeviews_google_upload import rv_pb2
 logger = logging.getLogger(__name__)
 
 
+MAX_MESSAGE_SIZE=2000000000  # 2 Gigabytes
+grpc_max_size_options = [
+    ('grpc.max_send_message_length', MAX_MESSAGE_SIZE),
+    ('grpc.max_receive_message_length', MAX_MESSAGE_SIZE),
+]
+
+
 def read_bytes(file_path):
     with open(file_path, "rb") as f:
         return f.read()
@@ -24,14 +31,16 @@ def setup_secure_channel(server, service_account_file):
     id_credentials = google.oauth2.service_account.IDTokenCredentials.from_service_account_file(
         service_account_file,
         target_audience=f'https://{server}')
-
+    
     # Create an authorized channel, per: https://github.com/salrashid123/grpc_google_id_tokens/blob/f09517fca10fa4b457204ec863502a917efb2a00/python/grpc_client.py
     return google.auth.transport.grpc.secure_authorized_channel(
         target=server,
         credentials=id_credentials,
         request=google.auth.transport.requests.Request(),
         ssl_credentials=grpc.ssl_channel_credentials(),
-        options=(('grpc.ssl_target_name_override', server,),)
+        options=grpc_max_size_options + [
+            ('grpc.ssl_target_name_override', server,)
+        ]
     )
 
 
@@ -58,9 +67,14 @@ class Client:
         """
         if service_account_file:
             self._channel = setup_secure_channel(
-                grpc_server, service_account_file)
+                grpc_server, 
+                service_account_file,
+            )
         else:
-            self._channel = grpc.insecure_channel(grpc_server)
+            self._channel = grpc.insecure_channel(
+                grpc_server, 
+                options=grpc_max_size_options,
+            )
 
     @property
     def channel(self):
