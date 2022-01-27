@@ -13,8 +13,10 @@ pipeline {
         stage('Prep workspace') {
             steps {
                 withPythonEnv('python3') {
-                    sh 'pip install --upgrade pip'
-                    sh 'pip install -r requirements.txt'
+                    dir('python-client') {
+                        sh 'pip install --upgrade pip'
+                        sh 'pip install -r requirements.txt'
+                    }
                 }
             }
         }
