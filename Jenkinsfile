@@ -12,8 +12,8 @@ pipeline {
     stages {
         stage('Prep workspace') {
             steps {
-                withPythonEnv('python3') {
-                    dir('python-client') {
+                dir('python-client') {
+                    withPythonEnv('python3') {
                         sh 'pip install --upgrade pip'
                         sh 'pip install -r requirements.txt'
                         sh 'pip install --upgrade -e .'
@@ -24,8 +24,8 @@ pipeline {
 
         stage('Test') {
             steps {
-                withPythonEnv('python3') {
-                    dir('python-client') {
+                dir('python-client') {
+                    withPythonEnv('python3') {
                         sh "pytest --junitxml=${testReportFile} || true"
                         junit(
                             keepLongStdio: true,
@@ -39,8 +39,8 @@ pipeline {
 
         stage('Package') {
             steps {
-                withPythonEnv('python3') {
-                    dir('python-client') {
+                dir('python-client') {
+                    withPythonEnv('python3') {
                         sh 'python setup.py sdist'
                     }
                     archiveArtifacts(artifacts: 'dist/*', followSymlinks: false)
@@ -56,8 +56,8 @@ pipeline {
                 }
             }
             steps {
-                withPythonEnv('python3') {
-                    dir('python-client') {
+                dir('python-client') {
+                    withPythonEnv('python3') {
                         withCredentials([usernamePassword(
                             credentialsId: 'nts_pypi',
                             passwordVariable: 'PASS',
