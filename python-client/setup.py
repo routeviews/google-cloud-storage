@@ -22,7 +22,8 @@ setup(
     version='0.2.0',       # Try to follow 'semantic versioning' scheme, e.g. https://semver.org/
     description="CLI tool for uploading RouteViews files to Google.",
     long_description_content_type='text/markdown',
-    long_description=read('docs/README.md'),
+    long_description=read('docs/user-guide.md'),
+    include_package_data=True,
     package_dir={'': 'src'},
     packages=find_packages('src'),
     license='apache-2.0',
