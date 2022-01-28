@@ -3,8 +3,8 @@ from textwrap import indent
 
 import grpc
 
-import rv_pb2_grpc
-import rv_pb2
+from routeviews_google_upload import rv_pb2_grpc
+from routeviews_google_upload import rv_pb2
 
 
 class Servicer(rv_pb2_grpc.RVServicer):
@@ -15,6 +15,8 @@ class Servicer(rv_pb2_grpc.RVServicer):
 
 
 def serve():
+    """Runs a local "DEBUG::ECHO" server on port 50051 (for testing purposes only).
+    """
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     rv_pb2_grpc.add_RVServicer_to_server(Servicer(), server)
     server.add_insecure_port('[::]:50051')
