@@ -3,8 +3,10 @@ name: python-client
 env:
   WORKDIR: python-client
 
-on: push
-  paths: ${{WORKDIR}}
+on: 
+  push: 
+    paths: 
+      - ${{ env.WORKDIR }}
 
 jobs:
   test:
@@ -37,4 +39,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@master
         with:
           password: ${{ secrets.NTSJENKINS_PYPI }}
-          packages_dir: ${{WORKDIR}}/dist
+          packages_dir: ${{ env.WORKDIR }}/dist
