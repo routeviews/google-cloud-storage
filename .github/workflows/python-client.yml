@@ -1,0 +1,40 @@
+# .github/workflows/python-client.yml
+name: python-client
+env:
+  WORKDIR: python-client
+
+on: push
+  paths: $WORKDIR
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v2
+
+      # Setup Python (faster than using Python container)
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.6"
+
+      - name: Install dependencies
+        run: |
+          pip install -r $WORKDIR/requirements.txt
+
+      - name: Test Annotate Plugin
+        run: pip install pytest-github-actions-annotate-failures
+
+      - name: Test
+        run: |
+          pytest $WORKDIR
+        
+      - name: Publish distribution 📦 to PyPI
+        if: github.ref == 'refs/heads/main'
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          password: ${{ secrets.NTSJENKINS_PYPI }}
+          packages_dir: ${{WORKDIR}}/dist
