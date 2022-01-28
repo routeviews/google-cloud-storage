@@ -52,7 +52,7 @@ pipeline {
             when {
                 allOf { // Only deploy main branch, and only if the python-client directory has been updated
                     branch 'main'
-                    changeset 'python-client/'
+                    changeset 'python-client/**'
                 }
             }
             steps {
