@@ -7,6 +7,9 @@ on:
   push: 
     paths: 
       - 'python-client/**'
+  pull_request: 
+    paths: 
+      - 'python-client/**'
 
 jobs:
   test-and-deploy:
