@@ -1,7 +1,9 @@
 
-This solution is deployed to PyPI via the [Jenkinsfile](../../Jenkinsfile) in this repository. 
+This solution is deployed to PyPI via the [python-client GitHub Action](../../.github/workflows/python-client.yml) in this repository. 
 
-Whenever the `main` branch has new changes pushed to the `python-client` directory, Jenkins will attempt to deploy those changes to PyPI!
+Whenever the `main` branch has new changes pushed to the `python-client` directory, the GitHub Action will attempt to deploy those changes to PyPI!
+
+> Additionally, whenever any code is pushed (or any pull request opened) that modifies the `python-client` directory, the automated tests will run!
 
 # Version Management
 
