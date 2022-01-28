@@ -16,6 +16,7 @@ pipeline {
                     dir('python-client') {
                         sh 'pip install --upgrade pip'
                         sh 'pip install -r requirements.txt'
+                        sh 'pip install --upgrade -e .'
                     }
                 }
             }
