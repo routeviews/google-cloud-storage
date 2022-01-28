@@ -4,7 +4,7 @@ env:
   WORKDIR: python-client
 
 on: push
-  paths: $WORKDIR
+  paths: ${{WORKDIR}}
 
 jobs:
   test:
