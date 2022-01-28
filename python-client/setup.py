@@ -19,7 +19,7 @@ install_and_setup_requires = [
 
 setup(
     name="routeviews-google-upload",
-    version='0.1.7',       # Try to follow 'semantic versioning' scheme, e.g. https://semver.org/
+    version='0.2.0',       # Try to follow 'semantic versioning' scheme, e.g. https://semver.org/
     description="CLI tool for uploading RouteViews files to Google.",
     long_description_content_type='text/markdown',
     long_description=read('docs/README.md'),
