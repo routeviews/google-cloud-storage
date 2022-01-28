@@ -1,9 +1,10 @@
 
-This solution is deployed to PyPI via the [python-client GitHub Action](../../.github/workflows/python-client.yml) in this repository. 
+This solution is deployed to PyPI via the [python-client GitHub Action](../../.github/workflows/python-client.yml) in this repository.
+The GitHub Action has the following behaviors:
 
-Whenever the `main` branch has new changes pushed to the `python-client` directory, the GitHub Action will attempt to deploy those changes to PyPI!
+* *Continuous Integration*: Whenever any pull request opened that modifies the `python-client` directory, the automated tests will be run by the GitHub Action workflow!
+* *Continuous Delivery*: Whenever the `main` branch has new changes pushed to the `python-client` directory, the GitHub Action will attempt to deploy those changes to PyPI!
 
-> Additionally, whenever any code is pushed (or any pull request opened) that modifies the `python-client` directory, the automated tests will run!
 
 # Version Management
 

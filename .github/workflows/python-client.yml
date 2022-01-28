@@ -7,6 +7,8 @@ on:
   push: 
     paths: 
       - 'python-client/**'
+    branches:
+      - main
   pull_request: 
     paths: 
       - 'python-client/**'
