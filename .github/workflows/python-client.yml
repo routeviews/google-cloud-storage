@@ -23,9 +23,13 @@ jobs:
         with:
           python-version: "3.6"
 
-      - name: Install dependencies
+      - name: Install pinned dependencies
         run: |
           pip install -r $WORKDIR/requirements.txt
+
+      - name: Install
+        run: |
+          pip install -e $WORKDIR
 
       - name: Test Annotate Plugin
         run: pip install pytest-github-actions-annotate-failures
