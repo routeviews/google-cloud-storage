@@ -6,10 +6,10 @@ env:
 on: 
   push: 
     paths: 
-      - "${{ env.WORKDIR }}/**"
+      - 'python-client/**'
 
 jobs:
-  test:
+  test-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
