@@ -1,6 +1,12 @@
 ## RouteViews Archive Converter
 
-### Deployment
+## Deploy to App Engine (Recommended)
+App Engine has a much larger maximum timeout (24 hours) and can be integrated
+with Cloud Tasks.
+
+To deploy, get into this directory and run `gcloud app deploy`.
+
+### Deploy to Cloud Run
 
 1.  Build the image from the root directory. (TODO: use docker-decompose.yaml)
     -   In root directory, 
@@ -16,7 +22,7 @@
     converted updates.
     -   Example:
     ```shell
-    $   gcloud run deploy rv-converter \ 
+    $   gcloud run deploy rv-converter \
         --image us-docker.pkg.dev/public-routing-data-backup/cloudrun/rv-converter:latest \
         --cpu 2 --memory 4Gi \
         --concurrency 2 \

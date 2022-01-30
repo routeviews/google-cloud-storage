@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"path/filepath"
 	"strings"
 	"time"
@@ -73,18 +72,14 @@ func routeViewsCollectorFromPath(filename string) (string, error) {
 }
 
 // readArchive reads from the source bucket and object. It returns the
-// collector name and its content if successful.
-func readArchive(ctx context.Context, gcsCli *storage.Client, bucket, object string) (string, []byte, error) {
+// collector name and its content reader if successful.
+func readArchive(ctx context.Context, gcsCli *storage.Client, bucket, object string) (string, io.Reader, error) {
 	obj := gcsCli.Bucket(bucket).Object(object)
 
 	// Read content from the object.
 	r, err := obj.NewReader(ctx)
 	if err != nil {
 		return "", nil, fmt.Errorf("NewReader(gs://%s/%s): %v", bucket, object, err)
-	}
-	content, err := ioutil.ReadAll(r)
-	if err != nil {
-		return "", nil, fmt.Errorf("ioutil.ReadAll: %v", err)
 	}
 
 	// Extract project type from the object metadata.
@@ -109,7 +104,7 @@ func readArchive(ctx context.Context, gcsCli *storage.Client, bucket, object str
 		log.Warnf("unsupported project type %s", projectType)
 	}
 
-	return collector, content, nil
+	return collector, r, nil
 }
 
 func translateAttrs(attrs []bgp.PathAttributeInterface) []*attributePayload {
@@ -175,102 +170,110 @@ func parseUpdate(collector string, h *mrt.MRTHeader, buf []byte) (*update, error
 
 type bzReaderFunc func(_ io.Reader) io.Reader
 
-// convert translates the bzip'ed MRT raw bytes into a BigQuery compatible
-// format and write to GCS.
-func convert(collector string, src []byte, dst io.Writer, bzip2Reader bzReaderFunc) error {
-	br := bzip2Reader(bytes.NewReader(src))
-	gw := gzip.NewWriter(dst)
-	defer gw.Close()
+func convertNext(r io.Reader, w io.Writer, collector string) error {
+	buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
+	_, err := io.ReadFull(r, buf)
+	if err == io.EOF {
+		return err
+	} else if err != nil {
+		return fmt.Errorf("failed to read MRT header: %v", err)
+	}
 
-	for {
-		buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
-		_, err := io.ReadFull(br, buf)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return fmt.Errorf("failed to read MRT header: %v", err)
-		}
+	h := &mrt.MRTHeader{}
+	err = h.DecodeFromBytes(buf)
+	if err != nil {
+		return fmt.Errorf("(*mrt.MRTHeader).DecodeFromBytes: %v", err)
+	}
 
-		h := &mrt.MRTHeader{}
-		err = h.DecodeFromBytes(buf)
-		if err != nil {
-			return fmt.Errorf("(*mrt.MRTHeader).DecodeFromBytes: %v", err)
-		}
+	buf = make([]byte, h.Len)
+	_, err = io.ReadFull(r, buf)
+	if err != nil {
+		return fmt.Errorf("failed to read MRT body: %v", err)
+	}
 
-		buf = make([]byte, h.Len)
-		_, err = io.ReadFull(br, buf)
-		if err != nil {
-			return fmt.Errorf("failed to read MRT body: %v", err)
-		}
+	// We only parse updates at the moment.
+	if (h.Type != mrt.BGP4MP && h.Type != mrt.BGP4MP_ET) ||
+		(h.SubType != uint16(mrt.MESSAGE_AS4) && h.SubType != uint16(mrt.MESSAGE)) {
+		log.WithFields(log.Fields{"type": h.Type, "subType": h.SubType}).Debug("unsupported message types")
+		return nil
+	}
 
-		// We only parse updates at the moment.
-		if (h.Type != mrt.BGP4MP && h.Type != mrt.BGP4MP_ET) ||
-			(h.SubType != uint16(mrt.MESSAGE_AS4) && h.SubType != uint16(mrt.MESSAGE)) {
-			log.WithFields(log.Fields{"type": h.Type, "subType": h.SubType}).Warn("unsupported message types")
-			continue
-		}
+	update, err := parseUpdate(collector, h, buf)
+	if err != nil {
+		log.Debug(fmt.Errorf("failed to parse update: %v, bytes: %v", err, buf))
+		return nil
+	}
 
-		update, err := parseUpdate(collector, h, buf)
-		if err != nil {
-			log.WithError(err).Warn("failed to parse update")
-			continue
-		}
-
-		b, err := json.Marshal(update)
-		if err != nil {
-			return fmt.Errorf("json.Marshal: %v", err)
-		}
-		// Write as JSONL.
-		if _, err := gw.Write(append(b, '\n')); err != nil {
-			return fmt.Errorf("writer.Write: %v", err)
-		}
+	b, err := json.Marshal(update)
+	if err != nil {
+		return fmt.Errorf("json.Marshal: %v", err)
+	}
+	// Write as JSONL.
+	if _, err := w.Write(append(b, '\n')); err != nil {
+		return fmt.Errorf("writer.Write: %v", err)
 	}
 	return nil
 }
 
-// convertedExists checks if a converted archive already exists at the
+// Convert translates the bzip'ed MRT raw bytes into a BigQuery compatible
+// format and write to the destination.
+func Convert(collector string, r io.Reader, dst io.Writer) {
+	convert(collector, r, dst, bzip2.NewReader)
+}
+
+func convert(collector string, r io.Reader, dst io.Writer, bzip2Reader bzReaderFunc) {
+	br := bzip2Reader(r)
+	gw := gzip.NewWriter(dst)
+	defer gw.Close()
+
+	for {
+		err := convertNext(br, gw, collector)
+		if err != nil {
+			if err != io.EOF {
+				log.Errorf("cannot convert message: %v", err)
+			}
+			break
+		}
+	}
+}
+
+// ObjExists checks if a converted archive already exists at the
 // destination.
-func convertedExists(ctx context.Context, gcsCli *storage.Client, object, bucket string) (bool, error) {
-	r, err := gcsCli.Bucket(bucket).Object(object).NewReader(ctx)
+func ObjExists(ctx context.Context, gcsCli *storage.Client, object, bucket string) (bool, error) {
+	_, err := gcsCli.Bucket(bucket).Object(object).Attrs(ctx)
 	if err != nil {
 		if err == storage.ErrObjectNotExist {
 			return false, nil
 		}
-		return false, fmt.Errorf("gs://%s/%s is not found", bucket, object)
+		return false, fmt.Errorf("cannot open gs://%s/%s: %v", bucket, object, err)
 	}
-	defer r.Close()
 	return true, nil
 }
 
 // ProcessMRTArchive converts an MRT dump into updates on GCS, which will later
-// be picked up by BigQuery automatically. ProcessMRTDump only supports dumps
-// of updates.
+// be picked up by BigQuery automatically. ProcessMRTDump converts on a best-
+// effort basis as it will convert as much as it can from every archive, and it only
+// supports archives of updates.
 func ProcessMRTArchive(ctx context.Context, gcsCli *storage.Client, cfg *Config) error {
 	return processMRTArchive(ctx, gcsCli, cfg, bzip2.NewReader)
 }
 
 func processMRTArchive(ctx context.Context, gcsCli *storage.Client, cfg *Config, br bzReaderFunc) error {
 	dstObject := strings.Replace(cfg.SrcObject, filepath.Ext(cfg.SrcObject), ".gz", 1)
-	if found, err := convertedExists(ctx, gcsCli, dstObject, cfg.DstBucket); err != nil {
-		return fmt.Errorf("convertedExists: %v", err)
+	if found, err := ObjExists(ctx, gcsCli, dstObject, cfg.DstBucket); err != nil {
+		return fmt.Errorf("ObjExists: %v", err)
 	} else if found {
 		log.Warnf("converted archive gs://%s/%s already exists.", cfg.DstBucket, dstObject)
 		return nil
 	}
 
-	collector, content, err := readArchive(ctx, gcsCli, cfg.SrcBucket, cfg.SrcObject)
+	collector, reader, err := readArchive(ctx, gcsCli, cfg.SrcBucket, cfg.SrcObject)
 	if err != nil {
 		return fmt.Errorf("readArchive(%s, %s): %v", cfg.SrcBucket, cfg.SrcObject, err)
 	}
-	if len(content) == 0 {
-		return fmt.Errorf("gs://%s/%s: content length is zero", cfg.SrcBucket, cfg.DstBucket)
-	}
 
 	buf := bytes.NewBuffer(nil)
-	err = convert(collector, content, buf, br)
-	if err != nil {
-		return fmt.Errorf("parser.ParseUpdateMRT: %v", err)
-	}
+	convert(collector, reader, buf, br)
 
 	// Only write messages if the whole conversion is done.
 	dst := gcsCli.Bucket(cfg.DstBucket).Object(dstObject).NewWriter(ctx)

@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	cloud.google.com/go/bigquery v1.8.0
+	cloud.google.com/go/cloudtasks v1.1.0
 	cloud.google.com/go/storage v1.18.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/dsnet/compress v0.0.1
@@ -17,8 +18,8 @@ require (
 	golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/text v0.3.7 // indirect
-	google.golang.org/api v0.62.0
-	google.golang.org/genproto v0.0.0-20211203200212-54befc351ae9
+	google.golang.org/api v0.63.0
+	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
 	google.golang.org/grpc v1.40.1
 	google.golang.org/protobuf v1.27.1
 )

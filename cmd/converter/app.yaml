@@ -1,0 +1,10 @@
+runtime: go115
+service: rv-converter
+instance_class: B4_1G
+
+basic_scaling:
+  max_instances: 150
+  idle_timeout: 15m
+
+env_variables:
+  BIGQUERY_BUCKET: "routeviews-bigquery"

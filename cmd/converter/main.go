@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 
 	"cloud.google.com/go/storage"
 )
+
+var isDebug = flag.Bool("debug", false, "Debug mode - more verbose logging.")
 
 type server struct {
 	gcsCli    *storage.Client
@@ -96,6 +99,11 @@ func (s *server) archiveUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	ctx := context.Background()
+	flag.Parse()
+	if *isDebug {
+		log.SetLevel(log.DebugLevel)
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
