@@ -1,4 +1,3 @@
-# .github/workflows/python-client.yml
 name: python-client
 env:
   WORKDIR: python-client
