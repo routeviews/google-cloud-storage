@@ -55,5 +55,6 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: pypa/gh-action-pypi-publish@release/v1.5
         with:
+          user: __token__
           password: ${{ secrets.NTSJENKINS_PYPI }}
           packages_dir: python-client/dist
