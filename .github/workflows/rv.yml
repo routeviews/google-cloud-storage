@@ -1,5 +1,14 @@
 name: RV
-on: ["push", "pull_request"]
+on: 
+  push: 
+    paths-ignore:
+      - 'python-client/**'
+      - '.github/workflows/python-client.yml'
+  pull_request:
+    paths-ignore:
+      - 'python-client/**'
+      - '.github/workflows/python-client.yml'
+  
 jobs:
 
   build:

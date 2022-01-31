@@ -35,7 +35,7 @@ $ routeviews-google-upload --file <filepath> --dest https://thing.com
 ```
 
 > This CLI tool is implemented! 
-> See more details in the [routeviews_google_upload PyPI package](https://badge.fury.io/py/routeviews-google-upload) 
+> See more details in the [routeviews-google-upload PyPI package](https://badge.fury.io/py/routeviews-google-upload) 
 
 The CLI tool should package up the file content, path and a MD5  checksum of the content
 in a Google Protobuf, and send that data over a [gRPC](https://gRPC.io) connection to a

@@ -1,0 +1,27 @@
+{
+    "python.testing.pytestArgs": [
+        "-v"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.nosetestsEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.enabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Args": [
+        "--ignore",
+        "E201,E202,E226,E231,E302,E401,E501,W291,W503"
+    ],
+    "cSpell.words": [
+        "bgpdata",
+        "CICD",
+        "grpcio",
+        "protobuf",
+        "routeviews",
+        "uologging"
+    ],
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.egg-info": true,
+    }
+}
