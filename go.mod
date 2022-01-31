@@ -5,6 +5,7 @@ go 1.16
 require (
 	cloud.google.com/go/bigquery v1.8.0
 	cloud.google.com/go/storage v1.18.2
+	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/dsnet/compress v0.0.1
 	github.com/fsouza/fake-gcs-server v1.31.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b

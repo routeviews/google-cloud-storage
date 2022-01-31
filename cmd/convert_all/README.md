@@ -1,6 +1,6 @@
 # Convert all archives
 
-A CLI tool to convert all archives from src bucket/directory to the dst bucket. It will send conversion requests to the cloud run endpoint in a controlled manner, and it will stop at the first failed conversion.
+A CLI tool to convert all archives from src bucket/directory to the dst bucket. It will send conversion requests to the cloud run endpoint in a controlled manner. It will try any conversion requests at most three times (with 30s backoff after each failed attempt).
 
 ## Usage
   ```shell

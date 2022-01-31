@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/cenkalti/backoff"
 	"github.com/golang/glog"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/iterator"
@@ -67,10 +69,13 @@ func newConMgr(ctx context.Context, cli *http.Client, host, srcBkt string, w int
 				}
 
 				fmt.Printf("Converting gs://%s/%s\n", srcBkt, obj)
-				if err := conReq(cli, host, obj, srcBkt); err != nil {
-					glog.Fatal(err)
+				err := backoff.Retry(func() error {
+					return conReq(cli, host, obj, srcBkt)
+				}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 3))
+				if err != nil {
+					glog.Errorf("failed to convert gs://%s/%s: %v", srcBkt, obj, err)
 				}
-				fmt.Printf("gs://%s/%s converted\n", srcBkt, obj)
+				time.Sleep(time.Second) // Avoid overloading the service.
 			}
 		}()
 	}
