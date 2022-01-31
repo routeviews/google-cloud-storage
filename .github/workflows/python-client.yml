@@ -1,6 +1,4 @@
 name: python-client
-env:
-  WORKDIR: python-client
 
 on: 
   push: 
@@ -18,9 +16,13 @@ jobs:
   test-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+        working-directory: python-client
 
     steps:
-      - name: Check out repository code
+      - name: Checkout repo
         uses: actions/checkout@v2
 
       # Setup Python (faster than using Python container)
@@ -31,18 +33,18 @@ jobs:
 
       - name: Install pinned dependencies
         run: |
-          pip install -r $WORKDIR/requirements.txt
+          pip install -r requirements.txt
 
       - name: Install
         run: |
-          pip install -e $WORKDIR
+          pip install -e .
 
       - name: Install Annotate Test Results Plugin
         run: pip install pytest-github-actions-annotate-failures
 
       - name: Test
         run: |
-          pytest $WORKDIR
+          pytest
       
       - name: Package 📦
         if: github.ref == 'refs/heads/main'
@@ -54,4 +56,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@master
         with:
           password: ${{ secrets.NTSJENKINS_PYPI }}
-          packages_dir: ${{ env.WORKDIR }}/dist
+          packages_dir: dist
