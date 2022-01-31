@@ -22,7 +22,10 @@ def main():
 
 def run(args):
     client = Client(args.dest, args.key_file)
-    client.upload(args.file, args.to_sql)
+    if args.override_filename:
+        client.upload(args.file, args.to_sql, args.override_filename)
+    else:
+        client.upload(args.file, args.to_sql)
 
 
 def parse_args():
@@ -30,13 +33,18 @@ def parse_args():
     # This tool runs in two modes -- (1) either provide a '--dest' target gRPC server, or (2) provide the '--server' flag.
     parser.add_argument(
         '--dest',
-        default='rv-server-cgfq4yjmfa-uc.a.run.app', # TODO, setup a routeviews CNAME then update this.
+        default='grpc.routeviews.org',
         help="The gRPC server where to send the file (use 'localhost:50051' for local development)"
     )
     parser.add_argument(
         '--file',
         required=True,
-        help='The file to be sent. (Required when running as a client)'
+        help='The file to be sent.'
+    )
+    parser.add_argument(
+        '--override-filename',
+        help='''Override the filename in the destination gRPC server. 
+                (omit to simply use the name/path provided by the --file argument).'''
     )
     parser.add_argument(
         '--key-file',

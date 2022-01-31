@@ -45,11 +45,11 @@ def setup_secure_channel(server, service_account_file):
     )
 
 
-def generate_FileRequest(file_path: str, to_sql: bool):
+def generate_FileRequest(file_path: str, to_sql: bool, filename: str = None):
     content = read_bytes(file_path)
-    payload = rv_pb2.FileRequest()
-    # TODO should we set the filename to the full file_path, or enable overriding the filename?
-    payload.filename = file_path.lstrip(os.sep)
+    filename = filename if filename else file_path
+    payload = rv_pb2.FileRequest()    
+    payload.filename = filename.lstrip(os.sep)
     payload.project = rv_pb2._FILEREQUEST_PROJECT.values_by_name['ROUTEVIEWS'].number
     payload.convert_sql = to_sql
     payload.content = content
@@ -81,7 +81,7 @@ class Client:
     def channel(self):
         return self._channel
 
-    def upload(self, file_path, to_sql=False):
+    def upload(self, file_path: str, to_sql: bool = False, filename: str = None):
         """Upload a file.
 
         Args:
@@ -90,7 +90,7 @@ class Client:
             to_sql (bool, optional): Indicate in the upload that this file should 
                 be converted to SQL (for BigQuery). Defaults to False.
         """
-        payload = generate_FileRequest(file_path, to_sql)
+        payload = generate_FileRequest(file_path, to_sql, filename)
         grpc_client = rv_pb2_grpc.RVStub(self.channel)
         response = grpc_client.FileUpload(payload)
         logger.info("Upload Status: " + str(response.status))
