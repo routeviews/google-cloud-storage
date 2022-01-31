@@ -16,9 +16,14 @@
         "bgpdata",
         "CICD",
         "grpcio",
+        "NTSJENKINS",
         "protobuf",
+        "pypa",
+        "pypi",
         "routeviews",
-        "uologging"
+        "sdist",
+        "uologging",
+        "WORKDIR"
     ],
     "files.exclude": {
         "**/__pycache__": true,

@@ -36,14 +36,19 @@ jobs:
         run: |
           pip install -e $WORKDIR
 
-      - name: Test Annotate Plugin
+      - name: Install Annotate Test Results Plugin
         run: pip install pytest-github-actions-annotate-failures
 
       - name: Test
         run: |
           pytest $WORKDIR
+      
+      - name: Package 📦
+        if: github.ref == 'refs/heads/main'
+        run: |
+          python setup.py sdist
         
-      - name: Publish distribution 📦 to PyPI
+      - name: Publish 📦 to PyPI
         if: github.ref == 'refs/heads/main'
         uses: pypa/gh-action-pypi-publish@master
         with:
