@@ -4,16 +4,12 @@ env:
 
 on: 
   push: 
-    paths-ignore:
-      - '.vscode/**'
     paths: 
       - 'python-client/**'
       - '.github/workflows/python-client.yml'
     branches:
       - main
   pull_request: 
-    paths-ignore:
-      - '.vscode/**'
     paths: 
       - 'python-client/**'
       - '.github/workflows/python-client.yml'
