@@ -113,7 +113,7 @@ func makeTransferConfig(cfg *TransferParams, dir, pattern string) *dpb.TransferC
 }
 
 func createTransferRuns(ctx context.Context, cli *datatransfer.Client, dirs []string, covered map[string]string, cfg *TransferParams) error {
-	for i, dir := range dirs {
+	for _, dir := range dirs {
 		pattern := fmt.Sprintf("gs://%s/%s*/*.gz", cfg.Bucket, dir)
 		if cid, ok := covered[pattern]; ok {
 			glog.Warningf("Skipped: config %s is covering %s", cid, pattern)
@@ -129,7 +129,7 @@ func createTransferRuns(ctx context.Context, cli *datatransfer.Client, dirs []st
 				glog.Warningf("attempt to transfer %s failed: %v", pattern, err)
 				return err
 			}
-			glog.Infof("%d/%d: Created transfer config %s for %s\n", i+1, len(dirs), resp.Name, pattern)
+			glog.Infof("Created transfer config %s for %s\n", resp.Name, pattern)
 			return nil
 		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 3))
 		if err != nil {
@@ -153,6 +153,7 @@ func Transfer(ctx context.Context, sc *storage.Client, dc *datatransfer.Client, 
 	if err != nil {
 		return fmt.Errorf("fetchCoveredDirs(%s): %v", params.Project, err)
 	}
+	glog.Infof("Found %d month dirs, %d covered dirs", len(monthPrefixes), len(covered))
 
 	return createTransferRuns(ctx, dc, monthPrefixes, covered, params)
 }
