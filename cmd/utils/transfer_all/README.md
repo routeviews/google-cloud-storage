@@ -6,7 +6,7 @@ each month & collector which automatically reloads at midnight.
 
 ## Usage
   ```shell
-  $  go run cmd/transfer_all/main.go --project=public-routing-data-archive \
+  $  go run cmd/utils/transfer_all/main.go --project=public-routing-data-archive \
                                      --location=US \
                                      --bucket=routeviews-bigquery \
                                      --dataset=public_routing_data \

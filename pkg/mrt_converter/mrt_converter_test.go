@@ -314,7 +314,6 @@ func TestConvertMRT(t *testing.T) {
 		collector string
 		archive   []byte
 		want      []*update
-		wantErr   bool
 	}{
 		{
 			desc:      "convert an archive with one AS4 update",
@@ -397,14 +396,19 @@ func TestConvertMRT(t *testing.T) {
 				encodeMRTMessage(t, fakeMRTMessage(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE, fakeAnn)),
 				encodeMRTMessage(t, fakeMRTMessage(t, fakeTime, mrt.BGP4MP_ET, mrt.MESSAGE_AS4, fakeAS4Withdrawal))[:10],
 			),
-			wantErr: true,
+			want: []*update{{
+				Collector:  "route-views3",
+				SeenAt:     unextended,
+				PeerAS:     15169,
+				Announced:  []string{"30.0.0.0/24", "40.0.0.0/24"},
+				Attributes: []*attributePayload{twoOctetAS4Path, twoOctetASPath},
+			}},
 		}, {
 			desc:      "incomplete message - bad body",
 			collector: "route-views3",
 			archive: concatMsgs(
 				encodeMRTMessage(t, fakeMRTMessage(t, fakeTime, mrt.BGP4MP_ET, mrt.MESSAGE_AS4, fakeAS4Withdrawal))[:mrt.MRT_COMMON_HEADER_LEN+1],
 			),
-			wantErr: true,
 		}, {
 			desc:      "parsing failed during converion",
 			collector: "route-views3",
@@ -446,14 +450,7 @@ func TestConvertMRT(t *testing.T) {
 			// bzip2 encoder, and it will be difficult to create test data compressed by
 			// bzip2, so we disable bzip2 in tests.
 			buf := bytes.NewBuffer(nil)
-			err := convert(test.collector, test.archive, buf, fakeBzip)
-			if gotErr := err != nil; test.wantErr != gotErr {
-				t.Errorf("convert() = err %v; wantErr = %v", err, test.wantErr)
-			}
-			if err != nil {
-				t.Log(err)
-				return
-			}
+			convert(test.collector, bytes.NewBuffer(test.archive), buf, fakeBzip)
 
 			// Decompress written data.
 			got := decompressed(t, buf)
@@ -476,8 +473,7 @@ func (w *badWriter) Write([]byte) (int, error) {
 func TestConvertMRTErrors(t *testing.T) {
 	t.Run("bad writer", func(t *testing.T) {
 		dst := &badWriter{err: fmt.Errorf("GCS not available")}
-		err := convert("routeviews.sg", encodeMRTMessage(t, fakeMRTMessage(t, time.Now(), mrt.BGP4MP, mrt.MESSAGE, fakeAnn)), dst,
-			fakeBzip)
+		err := convertNext(bytes.NewReader(encodeMRTMessage(t, fakeMRTMessage(t, time.Now(), mrt.BGP4MP, mrt.MESSAGE_AS4, fakeAS4Withdrawal))), dst, "routeviews.sg")
 		if err == nil {
 			t.Error("convert() => nil err; want non-nil err")
 		}
@@ -566,12 +562,6 @@ func TestProcessMRTArchiveErrors(t *testing.T) {
 			filename: "/routeviews",
 			metadata: map[string]string{ProjectMetadataKey: pb.FileRequest_ROUTEVIEWS.String()},
 			content:  encodeMRTMessage(t, fakeMRTMessage(t, time.Now(), mrt.BGP4MP_ET, mrt.MESSAGE_AS4, fakeAS4Withdrawal)),
-		},
-		{
-			desc:     "bad content",
-			filename: "route-views.sg/bgpdata/2021.11/UPDATES/updates.20211101.0000.bz2",
-			metadata: map[string]string{ProjectMetadataKey: pb.FileRequest_ROUTEVIEWS.String()},
-			content:  encodeMRTMessage(t, fakeMRTMessage(t, time.Now(), mrt.BGP4MP_ET, mrt.MESSAGE_AS4, fakeAS4Withdrawal))[:10],
 		},
 		{
 			desc:     "unrecognized project type",

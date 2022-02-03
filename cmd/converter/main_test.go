@@ -127,6 +127,10 @@ func TestArchiveUploadHandle(t *testing.T) {
 					Content: []byte{1, 2, 3, 4},
 				},
 			},
+			// This file will be created but empty.
+			dstObjects: []string{
+				"gs://dst-bucket/route-views4/bgpdata/updates/2021.12/updates.20211212.0015.gz",
+			},
 		},
 		{
 			desc:      "missing metadata",
@@ -202,7 +206,7 @@ func TestArchiveUploadHandle(t *testing.T) {
 				// Check if written data can be decompressed and parsed.
 				gr, _ := gzip.NewReader(bytes.NewReader(o.Content))
 				de, _ := ioutil.ReadAll(gr)
-				if err := json.Unmarshal(de, &(struct{}{})); err != nil {
+				if err := json.Unmarshal(de, &(struct{}{})); len(de) != 0 && err != nil {
 					t.Fatalf("failed to decode written data: %v", err)
 				}
 
