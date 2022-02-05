@@ -103,6 +103,7 @@ func main() {
 	if *isDebug {
 		log.SetLevel(log.DebugLevel)
 	}
+	log.SetFormatter(&log.JSONFormatter{})
 
 	port := os.Getenv("PORT")
 	if port == "" {

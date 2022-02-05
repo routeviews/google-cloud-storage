@@ -23,4 +23,4 @@ RUN set -x && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -
 # Copy the built binary into the docker image.
 COPY --from=builder /app/server /app/server
 
-CMD ["/app/server"]
+CMD ["/app/server", "--logtostderr=1"]
