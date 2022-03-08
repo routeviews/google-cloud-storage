@@ -37,7 +37,7 @@ Run the program, provide the bucket and ftp archive as flags, provide the key
 file location through the environment variable: GOOGLE_APPLICATION_CREDENTIALS.
 
 ```shell
-$ $ GOOGLE_APPLICATION_CREDENTIALS=<filesystem_path_to_key> mass_upload -bucket routeviews-archives -archive ftp://archive.routeviews.org/bgpdata
+$ GOOGLE_APPLICATION_CREDENTIALS=<filesystem_path_to_key> mass_upload -bucket routeviews-archives -archive ftp://archive.routeviews.org/bgpdata
 ```
 
 ## Review Logs
