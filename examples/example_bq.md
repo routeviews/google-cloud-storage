@@ -66,7 +66,21 @@ Below are some practical examples of accessing Route Views data in Google BigQue
         SELECT 4 AS afi, # 16 bytes if it's IPv6
             "104.237.172.0" AS ip,
             24 AS mask
-    )
+
+# Find updates whose AS Paths include both 15169 and 36040
+SELECT Announced, Attributes.ASPath
+  FROM 'historical_routing_data.updates'
+WHERE DATE(SeenAt) = "2021-11-02" AND (
+      36040 IN (
+      SELECT asn
+        FROM UNNEST(Attributes.ASPath) AS segment
+             CROSS JOIN UNNEST(segment.ASList) AS asn
+      )
+  AND 15169 IN (
+       SELECT asn
+         FROM UNNEST(Attributes.ASPath) AS segment
+              CROSS JOIN UNNEST(segment.ASList) AS asn
+              )
     SELECT Announced, r.Attributes.ASPath
     FROM `public-routing-data-backup.historical_routing_data.updates` as r, input as i
     WHERE (
