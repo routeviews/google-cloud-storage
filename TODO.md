@@ -29,3 +29,6 @@ Items to build, research, test or evaluate in creating the services outlined abo
 6. Metrics to collect on the server portion of the processing (prometheus metrics)
 
 7. Finding a golang MRT reader is also a required work item,
+
+8. Integrate RouteViews data with MLab data in BigQuery?
+* https://storage.googleapis.com/pub-tools-public-publication-data/pdf/10f5fd9e63cb2231987d33a207e44ee2b6ef07c0.pdf

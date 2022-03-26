@@ -1,10 +1,15 @@
 # Collect and store RouteViews data, from a Cloud Service
 
+A collaboration between Route Views and Google to expand Route Views data offerings 
+into Google Cloud products, and offload some Route Views' data offerings to a Google 
+cloud backup/mirror.
+
 ## Overview
 
 [Routeviews](http://www.routeviews.org)(RV) provides data collected from various
 route collectors. The data comes from BGP peers to the route collectors, historical
-data from at least 2004 is available. Review the RV [website](http://www.routeviews.org/routeviews/index.php/archive/) 
+data from at least 2004 is available. 
+Review the [Route Views website](http://www.routeviews.org/routeviews/index.php/archive/) 
 for specifics on data formats / timing.
 
 This project's goal is to provide the RV data through a standard cloud storage
@@ -12,6 +17,13 @@ mechanism uploading/archiving the data to at least:
 
   * [Google Cloud Storage (GCS)](https://cloud.google.com/storage)
   * [Google BigQuery](https://cloud.google.com/bigquery)
+    * See ["examples/example_bq.md"](examples/example_bq.md)
+
+## Examples
+
+For accessing Route Views data in Google, see the examples provided in "examples/".
+
+## Implementation Notes
 
 Archiving to cloud-storage may be accomplished through a simple signaling method
 from the RV archive server(s) to a service running in Google Cloud which is provided
@@ -31,11 +43,11 @@ Initially a CLI client for the RV upload part of the solution which can be run w
 command-line options such as:
 
 ```shell
-$ routeviews-google-upload --file <filepath> --dest https://thing.com
+$ routeviews-google-upload --file <filepath> --dest https://grpc.routeviews.org
 ```
 
 > This CLI tool is implemented! 
-> See more details in the [routeviews-google-upload PyPI package](https://badge.fury.io/py/routeviews-google-upload) 
+> See more details in the [routeviews-google-upload PyPI package](https://pypi.org/project/routeviews-google-upload) 
 
 The CLI tool should package up the file content, path and a MD5  checksum of the content
 in a Google Protobuf, and send that data over a [gRPC](https://gRPC.io) connection to a
@@ -52,6 +64,7 @@ The server must provide either affirmation that the files were handled properly,
 with appropriate status information about the fate of the file, conversion and bigquery uplaod.
 
 ## Metadata
+
 The following metadata should be retrievable during and after the gRPC request has been made. 
 Many of these attributes may be included from the standard set of metadata API 
 (https://cloud.google.com/storage/docs/metadata) attributes. Some of these attributes overlap with 
@@ -93,6 +106,6 @@ RouteViews automation solutions).
 The client is implemented and owned by the University of Oregon Network and Telecom Services team, who are the primary 
 maintainers of RouteViews.
 
-> See more details in the [routeviews_google_upload project README](routeviews_google_upload/README.md)
+> See more details in the [routeviews_google_upload project docs](python-client/docs/README.md).
 
 The server is implemented in Go and maintained by Chris Morrow at Google.
