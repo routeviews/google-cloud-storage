@@ -1,0 +1,5 @@
+buckets:
+  # Keys should match names in rv.proto.FileRequest.Project.
+  ROUTEVIEWS: "routeviews-archives"
+  ROUTEVIEWS_RIB: "routeviews-ribdumps"
+  RPKI_RARC: "rpki-archives"

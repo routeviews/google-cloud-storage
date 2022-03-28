@@ -18,6 +18,7 @@ message FileRequest {
   enum Project {
     UNKNOWN = 0;
     ROUTEVIEWS = 1;
+    ROUTEVIEWS_RIB = 4;
     RIPE_RIS = 2;
     RPKI_RARC = 3;
   }

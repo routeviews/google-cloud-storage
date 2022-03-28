@@ -4,22 +4,15 @@ package main
 import (
 	"context"
 	"crypto/md5"
-	"crypto/tls"
-	"crypto/x509"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/oauth"
 
+	"github.com/routeviews/google-cloud-storage/pkg/auth"
 	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 )
 
@@ -29,55 +22,18 @@ const (
 )
 
 var (
-	server = flag.String("server", "localhost:9876", "The host:port of the gRPC server.")
-	file   = flag.String("file", "", "A local File to transfer to cloud storage.")
-	saKey  = flag.String("sa_key", "", "Service account private key.")
+	server  = flag.String("server", "localhost:9876", "The host:port of the gRPC server.")
+	file    = flag.String("file", "", "A local File to transfer to cloud storage.")
+	saKey   = flag.String("sa_key", "", "Service account private key.")
+	project = flag.String("project", "", "Determines which project this file belongs to.")
+	useTLS  = flag.Bool("use_tls", true, "Enable TLS if true.")
 )
 
 func newConn(ctx context.Context, host string, saPath string) (*grpc.ClientConn, error) {
-	var opts []grpc.DialOption
-
-	var idTokenSource oauth2.TokenSource
-	var err error
-	audience := "https://" + strings.Split(host, ":")[0]
-	if saPath == "" {
-		idTokenSource, err = idtoken.NewTokenSource(ctx, audience)
-		if err != nil {
-			if err.Error() != `idtoken: credential must be service_account, found "authorized_user"` {
-				return nil, fmt.Errorf("idtoken.NewTokenSource: %v", err)
-			}
-			gts, err := google.DefaultTokenSource(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("attempt to use Application Default Credentials failed: %v", err)
-			}
-			idTokenSource = gts
-		}
-	} else {
-		idTokenSource, err = idtoken.NewTokenSource(ctx, audience, idtoken.WithCredentialsFile(saPath))
-		if err != nil {
-			return nil, fmt.Errorf("unable to create TokenSource: %v", err)
-		}
+	if *useTLS {
+		return auth.NewAuthConn(ctx, host, saPath)
 	}
-
-	opts = append(opts, grpc.WithAuthority(host))
-
-	systemRoots, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, err
-	}
-	cred := credentials.NewTLS(&tls.Config{
-		RootCAs: systemRoots,
-	})
-
-	opts = append(opts,
-		[]grpc.DialOption{
-			grpc.WithTransportCredentials(cred),
-			grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMsgSize)),
-			grpc.WithPerRPCCredentials(oauth.TokenSource{idTokenSource}),
-		}...,
-	)
-
-	return grpc.Dial(host, opts...)
+	return auth.InsecureConn(host)
 }
 
 func upload(ctx context.Context, conn *grpc.ClientConn, p *pb.FileRequest) (*pb.FileResponse, error) {
@@ -85,7 +41,7 @@ func upload(ctx context.Context, conn *grpc.ClientConn, p *pb.FileRequest) (*pb.
 	return client.FileUpload(ctx, p)
 }
 
-func makeReq(path string) (*pb.FileRequest, error) {
+func makeReq(path string, proj pb.FileRequest_Project) (*pb.FileRequest, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -98,7 +54,7 @@ func makeReq(path string) (*pb.FileRequest, error) {
 		Filename: path,
 		Content:  raw,
 		Md5Sum:   fmt.Sprintf("%x", md5.Sum(raw)),
-		Project:  pb.FileRequest_ROUTEVIEWS,
+		Project:  proj,
 	}, nil
 }
 
@@ -115,7 +71,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	req, err := makeReq(*file)
+	req, err := makeReq(*file, pb.FileRequest_Project(pb.FileRequest_Project_value[*project]))
 	if err != nil {
 		log.Fatalf("fail to makeReq(%v): %v", *file, err)
 	}
