@@ -13,8 +13,6 @@ package main
 import (
 	"context"
 	"crypto/md5"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -26,13 +24,9 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/golang/glog"
 	"github.com/jlaffaye/ftp"
+	"github.com/routeviews/google-cloud-storage/pkg/auth"
 	pb "github.com/routeviews/google-cloud-storage/proto/rv"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/oauth"
 )
 
 const (
@@ -59,6 +53,8 @@ var (
 	grpcService   = flag.String("uploadURL", "rv-server-cgfq4yjmfa-uc.a.run.app:443", "Upload service host:port.")
 	svcAccountKey = flag.String("saKey", "", "File location of service account key, if required.")
 	threads       = flag.Int("threads", 10, "Number of ftp/cloud processing threads.")
+
+	useTLS = flag.Bool("use_tls", true, "Enable TLS if true.")
 )
 
 type client struct {
@@ -96,49 +92,10 @@ func connectFtp(site string) (*ftp.ServerConn, error) {
 // newGRPC makes a new grpc (over https) connection for the upload service.
 // host is the hostname to connect to, saPath is a path to a stored json service account key.
 func newGRPC(ctx context.Context, host, saPath string) (*grpc.ClientConn, error) {
-	var opts []grpc.DialOption
-
-	var idTokenSource oauth2.TokenSource
-	var err error
-	audience := "https://" + strings.Split(host, ":")[0]
-	if saPath == "" {
-		idTokenSource, err = idtoken.NewTokenSource(ctx, audience)
-		if err != nil {
-			if err.Error() != `idtoken: credential must be service_account, found "authorized_user"` {
-				return nil, fmt.Errorf("idtoken.NewTokenSource: %v", err)
-			}
-			gts, err := google.DefaultTokenSource(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("attempt to use Application Default Credentials failed: %v", err)
-			}
-			idTokenSource = gts
-		}
-	} else {
-		idTokenSource, err = idtoken.NewTokenSource(ctx, audience, idtoken.WithCredentialsFile(saPath))
-		if err != nil {
-			return nil, fmt.Errorf("unable to create TokenSource: %v", err)
-		}
+	if *useTLS {
+		return auth.NewAuthConn(ctx, host, saPath)
 	}
-
-	opts = append(opts, grpc.WithAuthority(host))
-
-	systemRoots, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, err
-	}
-	cred := credentials.NewTLS(&tls.Config{
-		RootCAs: systemRoots,
-	})
-
-	opts = append(opts,
-		[]grpc.DialOption{
-			grpc.WithTransportCredentials(cred),
-			grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMsgSize)),
-			grpc.WithPerRPCCredentials(oauth.TokenSource{idTokenSource}),
-		}...,
-	)
-
-	return grpc.Dial(host, opts...)
+	return auth.InsecureConn(host)
 }
 
 func new(ctx context.Context, aUser, aPasswd, site, bucket, grpcService, saKey string, threads int) (*client, error) {

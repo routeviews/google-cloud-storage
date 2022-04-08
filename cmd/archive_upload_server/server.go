@@ -16,6 +16,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 
@@ -26,6 +27,7 @@ import (
 	pb "github.com/routeviews/google-cloud-storage/proto/rv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -39,24 +41,26 @@ const (
 )
 
 var (
-	port   = os.Getenv("PORT")
-	bucket = flag.String("bucket", "routeviews-archives", "Cloud storage bucket name.")
+	port = os.Getenv("PORT")
+
+	configFile = flag.String("config_file", "",
+		"YAML config file for the upload server.")
 
 	// TODO(morrowc): find a method to define the TLS certificate to be used, if this will
 	//                not be done through GCLB's inbound https path.
 )
 
 type rvServer struct {
-	bucket string
-	sc     *storage.Client
+	conf *config
+	sc   *storage.Client
 	pb.UnimplementedRVServer
 }
 
 // setProjectMeta set project source in the metadata of a GCS object. The
 // object must've existed when we set metadata.
-func (r rvServer) setProjectMeta(ctx context.Context, obj string, proj pb.FileRequest_Project) error {
+func (r rvServer) setProjectMeta(ctx context.Context, bkt, obj string, proj pb.FileRequest_Project) error {
 	// Set metadata once the object is created.
-	if _, err := r.sc.Bucket(r.bucket).Object(obj).Update(ctx, storage.ObjectAttrsToUpdate{
+	if _, err := r.sc.Bucket(bkt).Object(obj).Update(ctx, storage.ObjectAttrsToUpdate{
 		Metadata: map[string]string{
 			converter.ProjectMetadataKey: proj.String(),
 		},
@@ -68,38 +72,58 @@ func (r rvServer) setProjectMeta(ctx context.Context, obj string, proj pb.FileRe
 }
 
 // fileStore stores a file ([]byte) to a designated bucket location (string).
-func (r rvServer) fileStore(ctx context.Context, fn string, b []byte) error {
+func (r rvServer) fileStore(ctx context.Context, bkt, fn string, b []byte) error {
 	// Store the file content to the destination bucket.
-	wc := r.sc.Bucket(r.bucket).Object(fn).NewWriter(ctx)
+	wc := r.sc.Bucket(bkt).Object(fn).NewWriter(ctx)
 	defer wc.Close()
 	if _, err := io.Copy(wc, bytes.NewReader(b)); err != nil {
-		return fmt.Errorf("failed copying content to destination: %s/%s: %v", r.bucket, fn, err)
+		return fmt.Errorf("failed copying content to destination: %s/%s: %v", bkt, fn, err)
 	}
-	glog.Infof("Stored object to GCS: %s", fn)
+	glog.Infof("Stored object to GCS: %s/%s", bkt, fn)
 	return nil
 }
 
 // newRVServer creates and returns a proper RV object.
-func newRVServer(bucket string, client *storage.Client) (rvServer, error) {
-	return rvServer{
-		bucket: bucket,
-		sc:     client,
+func newRVServer(ctx context.Context, cf string, client *storage.Client) (*rvServer, error) {
+	c, err := readConfigFile(cf)
+	if err != nil {
+		return nil, err
+	}
+	// Check if each bucket exists.
+	for proj, bkt := range c.Buckets {
+		_, err := client.Bucket(bkt).Attrs(ctx)
+		if pb.FileRequest_Project_value[proj] == int32(pb.FileRequest_UNKNOWN) {
+			return nil, fmt.Errorf("bad project %s: %v", proj, err)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("bad bucket %s: %v", bkt, err)
+		}
+	}
+	return &rvServer{
+		conf: c,
+		sc:   client,
 	}, nil
 }
 
 // Store a RARC RPKI or Routeviews file to cloud storage.
-func (r rvServer) handleDataFile(ctx context.Context, proj pb.FileRequest_Project, resp *pb.FileResponse, fn string, c []byte) (*pb.FileResponse, error) {
-	if err := r.fileStore(ctx, fn, c); err != nil {
+func (r rvServer) handleDataFile(ctx context.Context, req *pb.FileRequest, resp *pb.FileResponse) (*pb.FileResponse, error) {
+	if _, ok := r.conf.Buckets[req.GetProject().String()]; !ok {
+		resp.Status = pb.FileResponse_FAIL
+		return resp, fmt.Errorf("%s is not supported", req.GetProject())
+	}
+	bkt := r.conf.Buckets[req.GetProject().String()]
+
+	if err := r.fileStore(ctx, bkt, req.GetFilename(), req.GetContent()); err != nil {
 		resp.Status = pb.FileResponse_FAIL
 		return resp, err
 	}
-	if err := r.setProjectMeta(ctx, fn, proj); err != nil {
+	if err := r.setProjectMeta(ctx, bkt, req.GetFilename(), req.GetProject()); err != nil {
 		resp.Status = pb.FileResponse_FAIL
 		return resp, err
 	}
 	resp.Status = pb.FileResponse_SUCCESS
 
-	glog.Infof("Finished processing datafile: %s", fn)
+	glog.Infof("Finished processing datafile: %s", req.GetFilename())
 	return resp, nil
 }
 
@@ -133,25 +157,39 @@ func (r rvServer) FileUpload(ctx context.Context, req *pb.FileRequest) (*pb.File
 	}
 
 	// Process the content based upon project requirements.
-	switch {
-	case proj == pb.FileRequest_ROUTEVIEWS:
-		return r.handleDataFile(ctx, pb.FileRequest_ROUTEVIEWS, resp, fn, content)
-	case proj == pb.FileRequest_RIPE_RIS:
-	case proj == pb.FileRequest_RPKI_RARC:
-		// Simply store the file.
-		return r.handleDataFile(ctx, pb.FileRequest_RPKI_RARC, resp, fn, content)
-	}
+	return r.handleDataFile(ctx, req, resp)
+}
 
-	return nil, fmt.Errorf("not Implemented storing: %v", req.GetFilename())
+func readConfigFile(path string) (*config, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("os.Open: %v", err)
+	}
+	bktConf, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("ioutil.ReadAll: %v", err)
+	}
+	glog.Info(string(bktConf))
+	c := &config{}
+	err = yaml.Unmarshal(bktConf, &c)
+	if err != nil {
+		return nil, fmt.Errorf("yaml: %v", err)
+	}
+	return c, nil
+}
+
+type config struct {
+	Buckets map[string]string
 }
 
 func main() {
 	flag.Parse()
+	ctx := context.Background()
 
 	if port == "" {
 		port = "9876"
 	}
-	log.Infof("Service will listren on port : %s", port)
+	log.Infof("Service will listen on port : %s", port)
 
 	// Start the listener.
 	// NOTE: this listens on all IP Addresses, caution when testing.
@@ -166,7 +204,7 @@ func main() {
 		log.Fatalf("failed to create storage client: %v", err)
 	}
 
-	r, err := newRVServer(*bucket, c)
+	r, err := newRVServer(ctx, *configFile, c)
 	if err != nil {
 		log.Fatalf("failed to create new rvServer: %v", err)
 	}

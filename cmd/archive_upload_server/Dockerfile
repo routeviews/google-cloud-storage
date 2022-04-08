@@ -23,4 +23,6 @@ RUN set -x && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -
 # Copy the built binary into the docker image.
 COPY --from=builder /app/server /app/server
 
-CMD ["/app/server", "--logtostderr=1"]
+COPY cmd/archive_upload_server/config.yaml /app/config.yaml
+
+CMD ["/app/server", "--logtostderr=1", "--config_file=/app/config.yaml"]
