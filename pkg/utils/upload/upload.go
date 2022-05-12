@@ -3,7 +3,6 @@ package uploadutils
 import (
 	"context"
 	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -18,7 +17,7 @@ func MD5FromGCS(ctx context.Context, hd *storage.BucketHandle, path string) (str
 	if err != nil {
 		return "", fmt.Errorf("failed to get attrs for obj: %v", err)
 	}
-	return hex.EncodeToString(attrs.MD5), nil
+	return fmt.Sprintf("%x", attrs.MD5), nil
 }
 
 // MD5FromHTTP returns the MD5 encoding and raw bytes by fetching data from the

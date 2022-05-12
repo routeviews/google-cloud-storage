@@ -99,10 +99,6 @@ func (s *Synchronizer) uploadFromFTP(ctx context.Context, f string) (bool, error
 	if err != nil {
 		return false, fmt.Errorf("file %s cannot be downloaded from %s: %v", f, s.httpURLRoot, err)
 	}
-	if ftpMD5 == gcsMD5 {
-		// Skip if file exists.
-		return true, nil
-	}
 	log.Infof("Writing %s", f)
 	if resp, err := s.gc.FileUpload(ctx, &pb.FileRequest{
 		Filename: f,
@@ -117,6 +113,7 @@ func (s *Synchronizer) uploadFromFTP(ctx context.Context, f string) (bool, error
 
 func (s *Synchronizer) uploadFilesFromFTP(ctx context.Context, files []string) {
 	var lastUploaded string
+	uploadCount := 0
 	for _, f := range files {
 		err := backoff.Retry(func() error {
 			skipped, err := s.uploadFromFTP(ctx, f)
@@ -124,8 +121,7 @@ func (s *Synchronizer) uploadFilesFromFTP(ctx context.Context, files []string) {
 				return fmt.Errorf("uploadFromFTP(%s): %v", f, err)
 			}
 			if !skipped {
-				// Do not overwhelm the archive server.
-				time.Sleep(time.Second)
+				uploadCount++
 			}
 			return nil
 		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(s.retryInterval), s.retryCount))
@@ -135,7 +131,7 @@ func (s *Synchronizer) uploadFilesFromFTP(ctx context.Context, files []string) {
 		}
 
 		// Check if any archive is missing (two consecutive archives are over
-		// 30 minutes apart). Structured log for potential metric collection.
+		// 15 minutes apart). Structured log for potential metric collection.
 		latest, err := timeFromFilename(f)
 		if err != nil {
 			log.Errorf("failed to parse filename %s", f)
@@ -158,6 +154,7 @@ func (s *Synchronizer) uploadFilesFromFTP(ctx context.Context, files []string) {
 		}
 		lastUploaded = f
 	}
+	log.Infof("Uploaded %d files to dir.", uploadCount)
 }
 
 func (s *Synchronizer) initFTP() (*ftp.ServerConn, error) {
