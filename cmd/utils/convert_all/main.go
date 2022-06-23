@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 	"flag"
-	"net/http"
 	"path/filepath"
 	"strings"
 
 	"cloud.google.com/go/storage"
 	"github.com/golang/glog"
-	"google.golang.org/api/idtoken"
 	"google.golang.org/api/iterator"
 
 	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
@@ -17,8 +15,6 @@ import (
 )
 
 var (
-	host       = flag.String("host", "", "HTTP URL of the converter address.")
-	saKey      = flag.String("sa_key", "", "Service account private key.")
 	srcBucket  = flag.String("src_bucket", "routeviews-archives", "GCS bucket that saves all raws MRT archives.")
 	dstBucket  = flag.String("dst_bucket", "routeviews-bigquery", "GCS bucket that saves all converted MRT archives.")
 	rootDir    = flag.String("root_dir", "", "The directory that the converter should traverse from the source bucket. Empty means the root of the bucket.")
@@ -31,7 +27,7 @@ type conMgr struct {
 	ConJobs chan string
 }
 
-func newConMgr(ctx context.Context, cli *http.Client, sc *storage.Client, host, srcBkt, dstBkt string, w int) *conMgr {
+func newConMgr(ctx context.Context, sc *storage.Client, srcBkt, dstBkt string, w int) *conMgr {
 	m := &conMgr{
 		ConJobs: make(chan string),
 	}
@@ -88,12 +84,7 @@ func main() {
 		glog.Exit(err)
 	}
 
-	hc, err := idtoken.NewClient(ctx, *host, idtoken.WithCredentialsFile(*saKey))
-	if err != nil {
-		glog.Exit(err)
-	}
-
-	mgr := newConMgr(ctx, hc, sc, *host, *srcBucket, *dstBucket, *numWorkers)
+	mgr := newConMgr(ctx, sc, *srcBucket, *dstBucket, *numWorkers)
 	query := &storage.Query{Prefix: *rootDir}
 	it := sc.Bucket(*srcBucket).Objects(ctx, query)
 	for {
