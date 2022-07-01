@@ -37,6 +37,12 @@ func TestSpannedMonths(t *testing.T) {
 			wantMonths: []string{"2006.10", "2006.11", "2006.12", "2007.01", "2007.02", "2007.03"},
 		},
 		{
+			desc:       "spans from last second of a month to the first second of another",
+			start:      parseTime(t, "2006-10-31T23:59:59+00:00"),
+			end:        parseTime(t, "2006-12-01T00:00:00+00:00"),
+			wantMonths: []string{"2006.10", "2006.11", "2006.12"},
+		},
+		{
 			desc:  "start is after end",
 			start: parseTime(t, "2006-01-02T15:04:05+00:00"),
 			end:   parseTime(t, "2006-01-01T15:04:05+00:00"),

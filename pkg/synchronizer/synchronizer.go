@@ -180,7 +180,7 @@ func (s *Synchronizer) Sync(ctx context.Context, start, end time.Time) error {
 	}
 
 	var dir map[string][]string
-	months := spannedMonths(start, end)
+	months := spannedMonths(start, time.Now())
 	err := backoff.Retry(func() error {
 		ftpConn, err := s.initFTP()
 		if err != nil {
@@ -299,13 +299,20 @@ func rvMonth(now time.Time) string {
 // spannedMonths generate a list of months that the time range spans. The
 // returned list may not be sorted in  time.
 func spannedMonths(start, end time.Time) []string {
+	if !start.Before(end) {
+		return nil
+	}
 	months := make(map[string]bool)
-	for curr := start; curr.Before(end); curr = curr.Add(24 * time.Hour) {
+	for curr := start; !curr.After(end); curr = curr.Add(24 * time.Hour) {
 		months[rvMonth(curr)] = true
+	}
+	if _, ok := months[rvMonth(end)]; !ok {
+		months[rvMonth(end)] = true
 	}
 	var res []string
 	for m := range months {
 		res = append(res, m)
 	}
+	fmt.Println(res)
 	return res
 }
