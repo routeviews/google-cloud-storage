@@ -59,7 +59,7 @@ def generate_FileRequest(file_path: str, to_sql: bool, filename: str = None):
 
 class Client:
     def __init__(self, grpc_server: str, service_account_file: str = None):
-        """A client to upload Route Views MRT and UPDATE files to a gRPC server.
+        """A client to upload RouteViews MRT and UPDATE files to a gRPC server.
 
         Args:
             grpc_server (str): The FQDN (name) of the server (e.g. grpc.routeviews.org).
