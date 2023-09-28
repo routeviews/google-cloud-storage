@@ -1,7 +1,7 @@
 # Collect and store RouteViews data, from a Cloud Service
 
-A collaboration between Route Views and Google to expand Route Views data offerings 
-into Google Cloud products, and offload some Route Views' data offerings to a Google 
+A collaboration between RouteViews and Google to expand RouteViews data offerings 
+into Google Cloud products, and offload some RouteViews' data offerings to a Google 
 cloud backup/mirror.
 
 ## Overview
@@ -9,7 +9,7 @@ cloud backup/mirror.
 [Routeviews](http://www.routeviews.org)(RV) provides data collected from various
 route collectors. The data comes from BGP peers to the route collectors, historical
 data from at least 2004 is available. 
-Review the [Route Views website](http://www.routeviews.org/routeviews/index.php/archive/) 
+Review the [RouteViews website](http://www.routeviews.org/routeviews/index.php/archive/) 
 for specifics on data formats / timing.
 
 This project's goal is to provide the RV data through a standard cloud storage
@@ -21,7 +21,7 @@ mechanism uploading/archiving the data to at least:
 
 ## Examples
 
-For accessing Route Views data in Google, see the examples provided in "examples/".
+For accessing RouteViews data in Google, see the examples provided in "examples/".
 
 ## Implementation Notes
 
