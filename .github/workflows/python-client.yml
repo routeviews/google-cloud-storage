@@ -51,11 +51,15 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           python setup.py sdist
-        
-      - name: Publish 📦 to PyPI
-        if: github.ref == 'refs/heads/main'
-        uses: pypa/gh-action-pypi-publish@release/v1.5
-        with:
-          user: __token__
-          password: ${{ secrets.NTSJENKINS_PYPI }}
-          packages_dir: python-client/dist
+
+# This job requires access to the UO NTS Jenkins server.
+# If we want to publish to pypi, we'll need to find an
+# alternate build server.
+#
+#      - name: Publish 📦 to PyPI
+#        if: github.ref == 'refs/heads/main'
+#        uses: pypa/gh-action-pypi-publish@release/v1.5
+#        with:
+#          user: __token__
+#          password: ${{ secrets.NTSJENKINS_PYPI }}
+#          packages_dir: python-client/dist
