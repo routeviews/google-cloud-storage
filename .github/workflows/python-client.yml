@@ -22,7 +22,7 @@ jobs:
         working-directory: python-client
 
     steps:
-      - name: Checkout repo
+      - name: Checkout source code
         uses: actions/checkout@v4
 
       # Setup Python (faster than using Python container)
@@ -40,7 +40,7 @@ jobs:
         run: |
           pip install -e .
 
-      - name: Install Annotate Test Results Plugin
+      - name: Install plugin that annotates test results 
         run: pip install pytest-github-actions-annotate-failures
 
       - name: Test
