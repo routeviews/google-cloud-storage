@@ -1,0 +1,4 @@
+cron:
+- description: "hourly updater"
+  url: /update
+  schedule: every 60 mins
