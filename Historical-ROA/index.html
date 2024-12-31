@@ -1,0 +1,42 @@
+<!-- index.html -->
+
+<html>
+IDK try just picking one, trying both should be the same as an AND in principle...
+    <h1>Query</h1>
+    <form method="POST">
+        <label>ASN:</label><br />
+        <input type="text" name="asn"><br />
+        <label>Prefix (CIDR), no IPv6 brackets:</label><br />
+        <input type="text" name="prefix"><br />
+        Do you want to automatically select the CIDR network (convert 1.1.1.1/24 to 1.1.1.0/24)?
+        <input type="checkbox" name="parsecidr" value="parsecidr" /><br/>
+        <input type="submit">
+    </form>
+
+    This is a site which every hour(-ish) collects data of all published BGP ROAs (see RPKI) and stores them in a 
+    google bigquery database. If you plan to use this as a long-term API and would prefer to use the bigquery table
+    directly then please <a href="https://gido.click/contact">contact me.</a>
+
+<script>
+    // I think I added this to try to find if I could ask a browser to use https
+    // while still allowing http for people who are not able to use https.
+    // I should really just do something like sign the results but that's beyond the scope of this.
+document.onload = function httpGetAsync(theUrl, callback)
+{
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.onreadystatechange = function() { 
+        if (xmlHttp.readyState == 4 && xmlHttp.status == 200)
+            callback(xmlHttp.responseText);
+    }
+    xmlHttp.open("GET", window.location.pathName+'/hsts', true); // true for asynchronous 
+    xmlHttp.send(null);
+    console.log("hsts page loaded")
+}
+</script>
+
+<footer>
+<a href="https://cleckley.click/hroas"> Find me on Github! https://cleckley.click/hroas</a> <br/>
+Find more things I do at <a href="https://gido.click">https://gido.click</a>
+</footer>
+
+</html>
