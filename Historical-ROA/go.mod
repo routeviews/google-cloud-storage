@@ -10,7 +10,7 @@ require (
 	github.com/gidoBOSSftw5731/log v0.0.0-20210527210830-1611311b4b64
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/shomali11/util v0.0.0-20200329021417-91c54758c87b
-	golang.org/x/net v0.33.0 // indirect
+	golang.org/x/net v0.36.0 // indirect
 	google.golang.org/api v0.50.0
 	google.golang.org/genproto v0.0.0-20210708141623-e76da96a951f // indirect
 	google.golang.org/protobuf v1.33.0
