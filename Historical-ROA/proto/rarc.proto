@@ -2,7 +2,7 @@
 
 syntax = "proto3";
 package rarcproto;
-option go_package = ".;proto";
+option go_package = "github.com/google-cloud-storage/Historical-ROA/proto/rarcproto";
 
 message ResultsFromDB {
     string ASN = 1;

@@ -17,10 +17,11 @@ import (
 	"github.com/shomali11/util/xhashes"
 
 	"cloud.google.com/go/bigquery"
-	pb "github.com/gidoBOSSftw5731/Historical-ROA/proto"
 	"github.com/gidoBOSSftw5731/log"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	pb "github.com/google-cloud-storage/Historical-ROA/proto"
 )
 
 // inputROA is a Struct with all the data from the json
@@ -484,8 +485,8 @@ func downloadRARC() (*inputROAArr, error) {
 	return &form, nil
 }
 
-//ErrorHandler is a function to handle HTTP errors
-//copied from imgsrvr, slightly different formatting
+// ErrorHandler is a function to handle HTTP errors
+// copied from imgsrvr, slightly different formatting
 func ErrorHandler(resp http.ResponseWriter, req *http.Request, status int, alert string, err error) {
 	log.Errorln(err)
 	resp.WriteHeader(status)
