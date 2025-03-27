@@ -21,7 +21,8 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	pb "github.com/google-cloud-storage/Historical-ROA/proto"
+	// TODO(morrowc): Make this be the local, newly re-named proto definition instead.
+	pb "github.com/gidoBOSSftw5731/Historical-ROA/proto"
 )
 
 // inputROA is a Struct with all the data from the json
