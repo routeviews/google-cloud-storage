@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -15,8 +14,10 @@ import (
 	"time"
 
 	"github.com/shomali11/util/xhashes"
+	"golang.org/x/oauth2/google"
 
 	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/storage"
 	"github.com/gidoBOSSftw5731/log"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -99,18 +100,11 @@ func main() {
 		log.Tracef("using default port: %v", port)
 	}
 
-	gcredsPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-	if gcredsPath == "" {
-		gcredsPath = "./Historical-ROAs-02210e643954.json"
-	}
-	gc, err := ioutil.ReadFile(gcredsPath)
+	// If the env var is set, use the oauth library and findDefaultCredentials to get creds.
+	ctx := context.Background()
+	gcreds, err := google.FindDefaultCredentials(ctx, storage.ScopeReadWrite)
 	if err != nil {
-		log.Fatalln(err)
-	}
-
-	err = json.Unmarshal(gc, &gcreds)
-	if err != nil {
-		log.Fatalln(err)
+		log.Fatalf("error getting default creds: %v", err)
 	}
 
 	// open bigquery connection
