@@ -5,4 +5,5 @@ handlers:
   script: auto
 
 instance_class: F4
-max_instances: 2
+automatic_scaling:
+  max_instances: 2
