@@ -76,12 +76,17 @@ type Creds struct {
 var (
 	client *bigquery.Client
 	gcreds Creds
+	// The project.dataset.table_name to store ROA data into.
+	project   = "public-routing-data-backup"
+	dataSet   = "historical_routing_data"
+	tableName = "roas_arr"
 )
 
 const (
-	roaURL          = "https://hosted-routinator.rarc.net/json"
-	projectID       = "historical-roas"
+	roaURL = "https://hosted-routinator.rarc.net/json"
+	// TODO(morrowc): Determine if this is critical to set, do not set if not critical.
 	projectLocation = "us-east4"
+	baseQuery       = "SELECT asn, prefix, mask, maxlen, ta, inserttimes FROM"
 )
 
 func main() {
@@ -175,18 +180,16 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 
 	log.Traceln(input)
 
+	roaTable := fmt.Sprintf("%s.%s.%s", project, dataSet, tableName)
+	queryText := fmt.Sprintf("%s %s", baseQuery, roaTable)
 	var query *bigquery.Query
 	switch {
 	case hasASN && !hasPrefix:
-		query = client.Query(`SELECT asn, prefix, mask, maxlen, ta, inserttimes FROM historical-roas.historical.roas_arr
-		WHERE asn = @asn`)
-
+		query = client.Query(fmt.Sprintf("%s %s", queryText, `WHERE asn = @asn`))
 	case !hasASN && hasPrefix:
-		query = client.Query(`SELECT asn, prefix, mask, maxlen, ta, inserttimes FROM historical-roas.historical.roas_arr
-		WHERE prefix = @prefix AND mask = @mask`)
+		query = client.Query(fmt.Sprintf("%s %s", queryText, `WHERE prefix = @prefix AND mask = @mask`))
 	case hasASN && hasPrefix:
-		query = client.Query(`SELECT asn, prefix, mask, maxlen, ta, inserttimes FROM historical-roas.historical.roas_arr
-		WHERE asn = @asn AND prefix = @prefix AND mask = @mask`)
+		query = client.Query(fmt.Sprintf("%s %s", queryText, `WHERE asn = @asn AND prefix = @prefix AND mask = @mask`))
 	}
 	query.Parameters = []bigquery.QueryParameter{
 		{
@@ -332,7 +335,8 @@ func pullToDB(w http.ResponseWriter, r *http.Request) {
 	//query and dump to map
 	var stored = make(map[string]struct{})
 
-	currentQuery := client.Query(`SELECT asn, ta, prefix, mask, maxlen FROM historical-roas.historical.roas_arr`)
+	roaTable := fmt.Sprintf("%s.%s.%s", project, dataSet, tableName)
+	currentQuery := client.Query(fmt.Sprintf("SELECT asn, ta, prefix, mask, maxlen FROM %s", roaTable))
 	job, err := currentQuery.Run(ctx)
 	if err != nil {
 		ErrorHandler(w, r, 500, "Error with query", err)
@@ -377,9 +381,12 @@ func pullToDB(w http.ResponseWriter, r *http.Request) {
 	for _, i := range origIn.Roas {
 		id++
 		// shut up I know its not correct terminology
-		ipandmask := strings.Split(i.Prefix, "/")
+		prefix := strings.Split(i.Prefix, "/")
+		if len(prefix) < 2 {
+			log.Errorf("prefix(%s) failed to be parsed properly", i.Prefix)
+		}
 		// probably doesnt need error checking
-		mask, _ := strconv.Atoi(ipandmask[1])
+		mask, _ := strconv.Atoi(prefix[1])
 
 		/*in = append(in, storedROA{
 			Asn:       i.Asn,
@@ -389,7 +396,7 @@ func pullToDB(w http.ResponseWriter, r *http.Request) {
 			Subnet:    mask,
 		})*/
 
-		in = append(in, &storedROAWithTime{i.Asn, ipandmask[0], i.MaxLength, i.Ta, mask, now})
+		in = append(in, &storedROAWithTime{i.Asn, prefix[0], i.MaxLength, i.Ta, mask, now})
 
 		//go log.Traceln(debug)
 		//debug++
@@ -397,21 +404,21 @@ func pullToDB(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Traceln("making buf table")
+	dataSetName := fmt.Sprintf("%s.%s", project, dataSet)
 	// make buf table
-
-	err = client.Dataset("historical").Table("buf").Delete(ctx)
+	err = client.Dataset(dataSetName).Table("buf").Delete(ctx)
 	if err != nil {
 		log.Errorln("Error Deleting buf: ", err)
 		err = nil
 	}
-	err = client.Dataset("historical").Table("buf").Create(ctx,
+	err = client.Dataset(dataSetName).Table("buf").Create(ctx,
 		&bigquery.TableMetadata{Schema: schema})
 	if err != nil {
 		ErrorHandler(w, r, 500, "error creating buf", err)
 		return
 	}
 
-	tmpinserter := client.Dataset("historical").Table("buf").Inserter()
+	tmpinserter := client.Dataset(dataSetName).Table("buf").Inserter()
 
 	var divided [][]*storedROAWithTime
 	chunk := 950
@@ -436,15 +443,18 @@ func pullToDB(w http.ResponseWriter, r *http.Request) {
 
 	// now make one plus one equal 2
 	// historical-roas.historical.roas_arr
-	query = client.Query(`MERGE historical.roas_arr arr
-	USING historical.buf b
+	roasTable := fmt.Sprintf("%s.%s.%s", project, dataSet, tableName)
+	queryText := fmt.Sprintf(`MERGE %s arr
+	USING %s.buf b
 	ON 	b.Asn = arr.asn AND arr.maxlen = b.MaxLength
 	AND b.Prefix = arr.prefix AND arr.ta = b.Ta
 	AND b.Subnet = arr.mask
 	WHEN MATCHED THEN
  		UPDATE SET inserttimes = ARRAY_CONCAT(b.times, arr.inserttimes)
 	WHEN NOT MATCHED BY TARGET THEN
-		INSERT (asn, maxlen, prefix, ta, mask, inserttimes) VALUES (b.Asn, b.MaxLength, b.Prefix, b.Ta, b.Subnet, b.times)`)
+		INSERT (asn, maxlen, prefix, ta, mask, inserttimes) VALUES (b.Asn, b.MaxLength, b.Prefix, b.Ta, b.Subnet, b.times)`,
+		roasTable, dataSetName)
+	query = client.Query(queryText)
 	job, err = query.Run(ctx)
 	if err != nil {
 		ErrorHandler(w, r, 500, "Error with query", err)
