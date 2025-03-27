@@ -498,18 +498,18 @@ func ErrorHandler(resp http.ResponseWriter, req *http.Request, status int, alert
 
 /*
 ; modified to save storage
-create table roas_arr (
-	asn text,
-	prefix text,
-	maxlen int,
-	ta text,
-	mask int,
-	inserttimes TIMESTAMP WITHOUT TIME ZONE[]
+create table PROJECT_NAME.DATASET.roas_arr (
+	asn string,
+	prefix string,
+	maxlen int64,
+	ta string,
+	mask int64,
+	inserttimes Array<TIMESTAMP>,
 );
-create table last_modified (
+create table PROJECT_NAME.DATASET.last_modified (
 	time TIMESTAMP WITHOUT TIME ZONE
 );
-create index idx_as on roas_arr (asn);
-create index idx_prefix_mask on roas_arr (prefix, mask);
-create index idx_prefix_mask_asn on roas_arr (prefix, mask, asn);
+create index idx_as on PROJECT_NAME.DATASET.roas_arr (asn);
+create index idx_prefix_mask on PROJECT_NAME.DATASET.roas_arr (prefix, mask);
+create index idx_prefix_mask_asn on PROJECT_NAME.DATASET.roas_arr (prefix, mask, asn);
 */
