@@ -21,7 +21,7 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	pb "github.com/google-cloud-storage/Historical-ROA/proto"
+	pb "github.com/routeviews/google-cloud-storage/Historical-ROA/proto"
 )
 
 // inputROA is a Struct with all the data from the json
