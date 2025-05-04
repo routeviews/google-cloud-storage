@@ -1,4 +1,5 @@
-runtime: go116
+runtime: go123
+service: historical-roa
 
 handlers:
 - url: /.*
