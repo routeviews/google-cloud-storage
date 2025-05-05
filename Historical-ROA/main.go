@@ -73,14 +73,15 @@ type Creds struct {
 }
 
 var (
-	client *bigquery.Client
-	gcreds Creds
+	client   *bigquery.Client
+	gcreds   Creds
+	mainTmpl = template.Must(template.New("main").Parse("./index.html"))
 )
 
 const (
 	roaURL          = "https://hosted-routinator.rarc.net/json"
-	projectID       = "historical-roas"
-	projectLocation = "us-east4"
+	projectID       = "public-routing-data-backup"
+	projectLocation = "us-central"
 )
 
 func main() {
@@ -110,7 +111,7 @@ func main() {
 	// open bigquery connection
 	client, err = bigquery.NewClient(context.Background(), gcreds.ProjectID)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalf("unable to connect to the bigquery DB: %v", err)
 	}
 
 	client.Location = projectLocation
@@ -135,14 +136,9 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	w.Header().Add("strict-transport-security", "max-age=2629800")
 
-	tmpl, err := template.ParseFiles("./index.html")
-	if err != nil {
-		log.Errorln(err)
-		return
-	}
-
 	if r.Method != http.MethodPost {
-		tmpl.Execute(w, nil)
+		log.Info("Not a POST, show default page.")
+		mainTmpl.Execute(w, nil)
 		return
 	}
 
@@ -155,7 +151,8 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 	if input.ParseCIDR != "" {
 		_, n, err := net.ParseCIDR(input.Prefix)
 		if err != nil {
-			tmpl.Execute(w, nil)
+			log.Infof("parseCIDR failed for %q: %v", input.Prefix, err)
+			mainTmpl.Execute(w, nil)
 			return
 		}
 		input.Prefix = n.String()
@@ -174,19 +171,20 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 
 	log.Traceln(input)
 
-	var query *bigquery.Query
+	baseQuery := `SELECT asn, prefix, mask, maxlen, ta, inserttimes
+                  FROM historical-roas.historical.roas_arr
+								 WHERE true=true
+				   		 `
 	switch {
 	case hasASN && !hasPrefix:
-		query = client.Query(`SELECT asn, prefix, mask, maxlen, ta, inserttimes FROM historical-roas.historical.roas_arr
-		WHERE asn = @asn`)
-
+		baseQuery = baseQuery + "AND asn = @asn"
 	case !hasASN && hasPrefix:
-		query = client.Query(`SELECT asn, prefix, mask, maxlen, ta, inserttimes FROM historical-roas.historical.roas_arr
-		WHERE prefix = @prefix AND mask = @mask`)
+		baseQuery = baseQuery + "AND prefix = @prefix AND mask = @mask"
 	case hasASN && hasPrefix:
-		query = client.Query(`SELECT asn, prefix, mask, maxlen, ta, inserttimes FROM historical-roas.historical.roas_arr
-		WHERE asn = @asn AND prefix = @prefix AND mask = @mask`)
+		baseQuery = baseQuery + "AND asn = @asn AND prefix = @prefix AND mask = @mask"
 	}
+	query := client.Query(baseQuery)
+
 	query.Parameters = []bigquery.QueryParameter{
 		{
 			Name:  "asn",
@@ -201,20 +199,24 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 			Value: inputStore.Subnet,
 		},
 	}
+
 	job, err := query.Run(ctx)
 	if err != nil {
+		log.Infof("error running the main-page query: %q: %v", baseQuery, err)
 		ErrorHandler(w, r, 500, "Error with query", err)
 		return
 	}
 
 	status, _ := job.Wait(ctx)
 	if err := status.Err(); err != nil {
+		log.Infof("error while waiting on job completion: %v", err)
 		ErrorHandler(w, r, 500, "Error with query", err)
 		return
 	}
 
 	it, err := job.Read(ctx)
 	if err != nil {
+		log.Infof("error while reading from the job: %v", err)
 		ErrorHandler(w, r, 500, "Error with query", err)
 		return
 	}
@@ -226,6 +228,7 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
+			log.Infof("failed getting the next row from BQ: %v", err)
 			ErrorHandler(w, r, 500, "Error with query", err)
 			continue
 		}
@@ -236,6 +239,8 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 			intime = append(intime, t.(time.Time))
 		}
 
+		// SELECT asn, prefix, mask, maxlen, ta, inserttimes FROM...
+		// Find a better way to unwrap this, if possible.
 		var results = pb.ResultsFromDB{
 			ASN:    row[0].(string),       // this
 			Prefix: row[1].(string),       // is
