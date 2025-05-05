@@ -85,6 +85,7 @@ const (
 )
 
 func main() {
+	ctx := context.Background()
 	// enable logging
 	log.SetCallDepth(2)
 	// set http port
@@ -109,7 +110,7 @@ func main() {
 	}
 
 	// open bigquery connection
-	client, err = bigquery.NewClient(context.Background(), gcreds.ProjectID)
+	client, err = bigquery.NewClient(ctx, projectID)
 	if err != nil {
 		log.Fatalf("unable to connect to the bigquery DB: %v", err)
 	}
