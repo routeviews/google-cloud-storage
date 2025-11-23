@@ -4,7 +4,7 @@ cachetools==4.2.4
 certifi==2024.7.4
 charset-normalizer==2.0.10
 google-auth==2.5.0
-grpcio==1.53.2
+grpcio==1.62.2
 grpcio-tools==1.62.2
 idna==3.7
 importlib-metadata==4.8.3
