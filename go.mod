@@ -17,7 +17,7 @@ require (
 	github.com/osrg/gobgp v0.0.0-20211201041502-6248c576b118
 	github.com/routeviews/google-cloud-storage/proto/rv v0.0.0-00010101000000-000000000000
 	github.com/shomali11/util v0.0.0-20220717175126-f0771b70947f
-	github.com/sirupsen/logrus v1.8.1
+	github.com/sirupsen/logrus v1.8.3
 	golang.org/x/oauth2 v0.27.0
 	google.golang.org/api v0.114.0
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1
