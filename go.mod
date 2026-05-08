@@ -1,6 +1,6 @@
 module github.com/routeviews/google-cloud-storage
 
-go 1.24.0
+go 1.25
 
 require (
 	cloud.google.com/go/bigquery v1.50.0
@@ -32,7 +32,7 @@ require (
 	cloud.google.com/go/iam v0.13.0 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/apache/arrow/go/v11 v11.0.0 // indirect
-	github.com/apache/thrift v0.16.0 // indirect
+	github.com/apache/thrift v0.23.0 // indirect
 	github.com/cockroachdb/apd v1.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/goccy/go-json v0.9.11 // indirect
