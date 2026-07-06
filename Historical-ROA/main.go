@@ -23,8 +23,8 @@ import (
 	"flag"
 
 	"cloud.google.com/go/bigquery"
-	pb "github.com/gidoBOSSftw5731/Historical-ROA/proto"
 	"github.com/golang/glog"
+	pb "github.com/routeviews/google-cloud-storage/Historical-ROA/proto"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -189,7 +189,7 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	w.Header().Add("strict-transport-security", "max-age=2629800")
 
-	tmpl, err := template.New("index").Parse(indexHTML)
+	tmpl, err := template.ParseFiles("index.html")
 	if err != nil {
 		glog.Errorln(err)
 		return
@@ -201,7 +201,7 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 
 	// If no query criteria submitted at all, simply serve initial empty query card
 	if r.Method != http.MethodPost && rawASN == "" && rawPrefix == "" {
-		tmpl.Execute(w, PageData{})
+		tmpl.ExecuteTemplate(w, "index.html", PageData{})
 		return
 	}
 
@@ -375,7 +375,7 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tmpl.Execute(w, pData)
+	tmpl.ExecuteTemplate(w, "index.html", pData)
 }
 
 // normalizeASN validates and prepends AS to raw autonomous system number strings

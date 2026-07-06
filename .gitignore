@@ -24,6 +24,5 @@ venv/
 *.tar.gz
 keys/
 key.jsonHistorical-ROAs-02210e643954.json
-Historical-ROA
 coverage.out
 roa_proxy/roa_proxy
