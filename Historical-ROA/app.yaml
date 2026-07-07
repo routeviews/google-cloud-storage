@@ -1,8 +1,9 @@
-runtime: go123
+runtime: go126
 service: historical-roa
 
 handlers:
 - url: /.*
   script: auto
+  secure: always
 
 instance_class: F4

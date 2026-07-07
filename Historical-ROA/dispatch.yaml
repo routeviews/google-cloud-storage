@@ -1,0 +1,4 @@
+dispatch:
+  # Route traffic for the custom domain to the 'historical-roa' service
+  - url: "historical-roas.rarc.net/*"
+    service: historical-roa

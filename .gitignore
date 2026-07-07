@@ -23,4 +23,6 @@ venv/
 *.egg-info
 *.tar.gz
 keys/
-key.json
+key.jsonHistorical-ROAs-02210e643954.json
+coverage.out
+roa_proxy/roa_proxy

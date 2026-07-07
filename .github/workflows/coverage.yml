@@ -1,0 +1,39 @@
+name: Run Tests and Upload Coverage
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.26'
+
+    - name: Start BigQuery Emulator
+      run: |
+        docker run -d -p 9050:9050 ghcr.io/goccy/bigquery-emulator:latest --project=public-routing-data-backup --dataset=historical --port=9050
+        sleep 3
+
+    - name: Run Tests with Coverage
+      env:
+        BIGQUERY_EMULATOR_HOST: localhost:9050
+      run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.out
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+        # Note: For public repositories, a token is generally not required,
+        # but adding one is recommended by Codecov for rate limit reliability.
+        # If this is a private repo, you MUST add a secret: ${{ secrets.CODECOV_TOKEN }}
