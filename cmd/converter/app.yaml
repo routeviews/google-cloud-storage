@@ -1,4 +1,4 @@
-runtime: go115
+runtime: go123
 service: rv-converter
 instance_class: B4_1G
 

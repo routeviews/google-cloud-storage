@@ -24,7 +24,7 @@ import (
 	"github.com/golang/glog"
 	log "github.com/golang/glog"
 	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
-	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"gopkg.in/yaml.v2"
