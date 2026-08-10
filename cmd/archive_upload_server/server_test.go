@@ -8,7 +8,7 @@ import (
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/google/go-cmp/cmp"
 	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
-	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gopkg.in/yaml.v2"
 )

@@ -11,7 +11,7 @@ import (
 	"google.golang.org/api/iterator"
 
 	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
-	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto"
 )
 
 var (

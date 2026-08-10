@@ -17,7 +17,7 @@ import (
 	"cloud.google.com/go/storage"
 	uploadutils "github.com/routeviews/google-cloud-storage/pkg/utils/upload"
 
-	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto"
 	log "github.com/sirupsen/logrus"
 )
 

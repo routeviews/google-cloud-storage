@@ -17,7 +17,7 @@ import (
 
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 
-	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto"
 	log "github.com/sirupsen/logrus"
 )
 
