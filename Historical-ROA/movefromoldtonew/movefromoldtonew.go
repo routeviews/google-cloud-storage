@@ -1,19 +1,20 @@
 package movefromoldtonew
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gidoBOSSftw5731/log"
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v5"
 )
 
 //this should be done in SQL but I am so done with that
 
 // the only point of this
 func Main(w http.ResponseWriter, r *http.Request) {
-
+	ctx := r.Context()
 	log.SetCallDepth(4)
 
 	http.Error(w, "can't hijack rw", 200)
@@ -33,20 +34,18 @@ func Main(w http.ResponseWriter, r *http.Request) {
 		dbip = "/cloudsql/historical-roas:us-east1:history3"
 	}
 
-	db, err := pgx.Connect(pgx.ConnConfig{
-		Host:     dbip,
-		User:     "postgres",
-		Password: dbpass,
-		Database: "roas",
-	})
+	connStr := fmt.Sprintf("postgres://postgres:%s@%s/roas", dbpass, dbip)
+	db, err := pgx.Connect(ctx, connStr)
 	if err != nil {
 		log.Fatalln(err)
 	}
+	defer db.Close(ctx)
 
-	rows, err := db.Query("SELECT DISTINCT inserttime FROM roas")
+	rows, err := db.Query(ctx, "SELECT DISTINCT inserttime FROM roas")
 	if err != nil {
 		log.Fatalln(err)
 	}
+	defer rows.Close()
 
 	var times []time.Time
 	for rows.Next() {
@@ -55,10 +54,11 @@ func Main(w http.ResponseWriter, r *http.Request) {
 		times = append(times, t)
 	}
 
-	txn, err := db.Begin()
+	txn, err := db.Begin(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
+	defer txn.Rollback(ctx)
 
 	type temp struct {
 		asn, prefix, ta string
@@ -71,7 +71,7 @@ func Main(w http.ResponseWriter, r *http.Request) {
 	for _, t := range times {
 		println(debug)
 
-		r, err := db.Query("SELECT DISTINCT asn, prefix, mask, ta, maxlen FROM roas WHERE inserttime = $1", t)
+		r, err := db.Query(ctx, "SELECT DISTINCT asn, prefix, mask, ta, maxlen FROM roas WHERE inserttime = $1", t)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -82,33 +82,16 @@ func Main(w http.ResponseWriter, r *http.Request) {
 
 			buf = append(buf, b)
 		}
+		r.Close()
 		debug++
 	}
-
-	/*	debug = 0
-		for _, b := range buf {
-			debug++
-			println(debug)
-			err = db.QueryRow("SELECT FROM roas WHERE asn = $1 AND prefix = $2 AND mask = $3 AND ta = $4 AND maxlen = $5",
-				b.asn, b.prefix, b.mask, b.ta, b.maxlen).Scan()
-			println("foo2")
-			switch err {
-			case pgx.ErrNoRows:
-				b.update = true
-			case nil:
-				b.update = false
-			default:
-				log.Fatalln("query failed", err)
-			}
-			buf2 = append(buf2, b)
-		}*/
 
 	debug = 0
 	for _, r := range buf {
 		debug++
 		println(debug)
 
-		ra, err := txn.Exec(`UPDATE roas_arr
+		ra, err := txn.Exec(ctx, `UPDATE roas_arr
 		SET inserttimes = unnest(array_append(inserttimes, $1))
 		WHERE asn = $2 AND prefix = $3 AND maxlen = $4 AND ta = $5 AND mask = $6`,
 			r.t, r.asn, r.prefix, r.maxlen, r.ta, r.mask)
@@ -118,7 +101,7 @@ func Main(w http.ResponseWriter, r *http.Request) {
 
 		switch ra.RowsAffected() {
 		case 0:
-			_, err = txn.Exec(`INSERT INTO roas_arr(asn, prefix, maxlen, ta, mask, inserttimes)
+			_, err = txn.Exec(ctx, `INSERT INTO roas_arr(asn, prefix, maxlen, ta, mask, inserttimes)
 			VALUES ($1, $2, $3, $4, $5, $6)`,
 				r.asn, r.prefix, r.maxlen,
 				r.ta, r.mask, []time.Time{r.t})
@@ -129,7 +112,7 @@ func Main(w http.ResponseWriter, r *http.Request) {
 		println("foo3")
 	}
 
-	err = txn.Commit()
+	err = txn.Commit(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}

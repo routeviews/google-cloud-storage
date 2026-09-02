@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
-	"github.com/osrg/gobgp/pkg/packet/mrt"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v3/pkg/packet/mrt"
 
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 
