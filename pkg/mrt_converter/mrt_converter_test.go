@@ -17,7 +17,7 @@ import (
 
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 
-	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,6 +37,12 @@ var (
 		bgp.NewIPAddrPrefix(24, "30.0.0.0"),
 		bgp.NewIPAddrPrefix(24, "40.0.0.0"),
 	}))
+	fakeAS4Keepalive = mrt.NewBGP4MPMessage(
+		100000, 6447, 0,
+		"1.0.0.0", "2.0.0.0",
+		true,
+		bgp.NewBGPKeepAliveMessage(),
+	)
 	fakeAS4Withdrawal = mrt.NewBGP4MPMessage(100000, 6447, 0, "1.0.0.0", "2.0.0.0", true, bgp.NewBGPUpdateMessage([]*bgp.IPAddrPrefix{
 		bgp.NewIPAddrPrefix(24, "30.0.0.0"),
 		bgp.NewIPAddrPrefix(24, "40.0.0.0"),
@@ -214,6 +220,19 @@ func TestParseUpdate(t *testing.T) {
 			collector: "route-views3",
 			body:      encodeBGP4MP(t, fakeAS4Ann),
 			wantErr:   true,
+		},
+		{
+			desc:      "BGP4MP message containing non-update BGP message",
+			collector: "route-views3",
+			header: fakeMRTHeader(
+				t,
+				fakeTime,
+				mrt.BGP4MP,
+				mrt.MESSAGE_AS4,
+				len(encodeBGP4MP(t, fakeAS4Keepalive)),
+			),
+			body:    encodeBGP4MP(t, fakeAS4Keepalive),
+			wantErr: true,
 		},
 	}
 
@@ -420,6 +439,24 @@ func TestConvertMRT(t *testing.T) {
 				0, 23, 2, 100, 0, 0, 0}, // Wrong withdrawn routes length (100).
 				encodeMRTMessage(t, fakeMRTMessage(t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, fakeAS4Withdrawal))),
 
+			want: []*update{{
+				Collector:  "route-views3",
+				SeenAt:     unextended,
+				PeerAS:     100000,
+				Withdrawn:  []string{"30.0.0.0/24", "40.0.0.0/24"},
+				Attributes: nil,
+			}},
+		}, {
+			desc:      "skip non-update BGP message and continue conversion",
+			collector: "route-views3",
+			archive: concatMsgs(
+				encodeMRTMessage(t, fakeMRTMessage(
+					t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, fakeAS4Keepalive,
+				)),
+				encodeMRTMessage(t, fakeMRTMessage(
+					t, fakeTime, mrt.BGP4MP, mrt.MESSAGE_AS4, fakeAS4Withdrawal,
+				)),
+			),
 			want: []*update{{
 				Collector:  "route-views3",
 				SeenAt:     unextended,

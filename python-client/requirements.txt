@@ -11,7 +11,7 @@ importlib-metadata==4.8.3
 iniconfig==1.1.1
 packaging==21.3
 pluggy==1.0.0
-protobuf==4.25.8
+protobuf==5.29.6
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pyparsing==3.0.7

@@ -16,7 +16,7 @@ import (
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 	"github.com/osrg/gobgp/pkg/packet/mrt"
 
-	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -156,8 +156,16 @@ func parseUpdate(collector string, h *mrt.MRTHeader, buf []byte) (*update, error
 		return nil, fmt.Errorf("failed to parse body: %v", err)
 	}
 
-	mrtMsg := msg.Body.(*mrt.BGP4MPMessage)
-	bgpUpdate := mrtMsg.BGPMessage.Body.(*bgp.BGPUpdate)
+	mrtMsg, ok := msg.Body.(*mrt.BGP4MPMessage)
+	if !ok {
+		return nil, fmt.Errorf("unexpected MRT body type %T", msg.Body)
+	}
+
+	bgpUpdate, ok := mrtMsg.BGPMessage.Body.(*bgp.BGPUpdate)
+	if !ok {
+		return nil, fmt.Errorf("unexpected BGP message body type %T", mrtMsg.BGPMessage.Body)
+	}
+
 	return &update{
 		SeenAt:     h.GetTime(),
 		PeerAS:     mrtMsg.PeerAS,

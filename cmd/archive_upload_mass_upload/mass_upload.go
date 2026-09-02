@@ -25,7 +25,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/jlaffaye/ftp"
 	"github.com/routeviews/google-cloud-storage/pkg/auth"
-	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto"
 	"google.golang.org/grpc"
 )
 

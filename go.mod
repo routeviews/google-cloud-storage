@@ -13,7 +13,6 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/jlaffaye/ftp v0.0.0-20211117213618-11820403398b
 	github.com/osrg/gobgp v0.0.0-20211201041502-6248c576b118
-	github.com/routeviews/google-cloud-storage/proto/rv v0.0.0-00010101000000-000000000000
 	github.com/shomali11/util v0.0.0-20220717175126-f0771b70947f
 	github.com/sirupsen/logrus v1.8.3
 	golang.org/x/oauth2 v0.27.0
@@ -50,7 +49,6 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/crypto v0.51.0 // indirect
 	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
@@ -61,5 +59,3 @@ require (
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 )
-
-replace github.com/routeviews/google-cloud-storage/proto/rv => ./proto

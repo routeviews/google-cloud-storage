@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/routeviews/google-cloud-storage/pkg/auth"
-	pb "github.com/routeviews/google-cloud-storage/proto/rv"
+	pb "github.com/routeviews/google-cloud-storage/proto"
 )
 
 const (
