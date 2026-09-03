@@ -6,9 +6,13 @@ import (
 	"html"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"cloud.google.com/go/bigquery"
+	"google.golang.org/api/option"
 )
 
 func TestErrorHandlerEscaping(t *testing.T) {
@@ -65,22 +69,46 @@ func TestPullToDB_WrongCronHeader(t *testing.T) {
 }
 
 func TestTextErrorHandler(t *testing.T) {
-	rec := httptest.NewRecorder()
-	TextErrorHandler(rec, http.StatusBadRequest, "Bad Request occurred", fmt.Errorf("some detail"))
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("Expected status %v, got %v", http.StatusBadRequest, rec.Code)
+	tests := []struct {
+		name         string
+		status       int
+		alert        string
+		err          error
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name:         "WithError",
+			status:       http.StatusBadRequest,
+			alert:        "Bad Request occurred",
+			err:          fmt.Errorf("some detail"),
+			expectedCode: http.StatusBadRequest,
+			expectedBody: "Error 400: Bad Request occurred: some detail\n",
+		},
+		{
+			name:         "WithoutError",
+			status:       http.StatusNotFound,
+			alert:        "Not Found",
+			err:          nil,
+			expectedCode: http.StatusNotFound,
+			expectedBody: "Error 404: Not Found\n",
+		},
 	}
 
-	contentType := rec.Header().Get("Content-Type")
-	if !strings.HasPrefix(contentType, "text/plain") {
-		t.Errorf("Expected Content-Type to start with 'text/plain', got %q", contentType)
-	}
+	for _, tc := range tests {
+		rec := httptest.NewRecorder()
+		TextErrorHandler(rec, tc.status, tc.alert, tc.err)
 
-	body := rec.Body.String()
-	expectedBody := "Error 400: Bad Request occurred: some detail\n"
-	if body != expectedBody {
-		t.Errorf("Expected body %q, got %q", expectedBody, body)
+		if rec.Code != tc.expectedCode {
+			t.Errorf("[%s] Expected status %v, got %v", tc.name, tc.expectedCode, rec.Code)
+		}
+		contentType := rec.Header().Get("Content-Type")
+		if !strings.HasPrefix(contentType, "text/plain") {
+			t.Errorf("[%s] Expected Content-Type to start with 'text/plain', got %q", tc.name, contentType)
+		}
+		if body := rec.Body.String(); body != tc.expectedBody {
+			t.Errorf("[%s] Expected body %q, got %q", tc.name, tc.expectedBody, body)
+		}
 	}
 }
 
@@ -141,29 +169,57 @@ func TestNormalizePrefix(t *testing.T) {
 }
 
 func TestComputeAvailabilityRanges(t *testing.T) {
-	// Consecutive daily updates
 	d1 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	d2 := d1.Add(24 * time.Hour)
 	d3 := d2.Add(24 * time.Hour)
-
-	// Large gap (interruption)
 	d4 := time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)
 	d5 := d4.Add(24 * time.Hour)
 
-	times := []time.Time{d1, d2, d3, d4, d5}
-
-	got := computeAvailabilityRanges(times, 26*time.Hour)
-	expected := []string{
-		"Jan 1 2026 -> Jan 3 2026",
-		"Feb 1 2026 -> Feb 2 2026",
+	tests := []struct {
+		name      string
+		times     []time.Time
+		threshold time.Duration
+		expected  []string
+	}{
+		{
+			name:      "EmptyTimes",
+			times:     nil,
+			threshold: 26 * time.Hour,
+			expected:  nil,
+		},
+		{
+			name:      "SingleTime",
+			times:     []time.Time{d1},
+			threshold: 26 * time.Hour,
+			expected:  []string{"Jan 1 2026"},
+		},
+		{
+			name:      "SameDayTimes",
+			times:     []time.Time{d1, d1.Add(2 * time.Hour)},
+			threshold: 26 * time.Hour,
+			expected:  []string{"Jan 1 2026"},
+		},
+		{
+			name:      "ConsecutiveAndGaps",
+			times:     []time.Time{d1, d2, d3, d4, d5},
+			threshold: 26 * time.Hour,
+			expected: []string{
+				"Jan 1 2026 -> Jan 3 2026",
+				"Feb 1 2026 -> Feb 2 2026",
+			},
+		},
 	}
 
-	if len(got) != len(expected) {
-		t.Fatalf("got %d ranges, want %d", len(got), len(expected))
-	}
-	for i := range got {
-		if got[i] != expected[i] {
-			t.Errorf("range %d = %q, want %q", i, got[i], expected[i])
+	for _, tc := range tests {
+		got := computeAvailabilityRanges(tc.times, tc.threshold)
+		if len(got) != len(tc.expected) {
+			t.Errorf("[%s] got %d ranges, want %d", tc.name, len(got), len(tc.expected))
+			continue
+		}
+		for i := range got {
+			if got[i] != tc.expected[i] {
+				t.Errorf("[%s] range %d = %q, want %q", tc.name, i, got[i], tc.expected[i])
+			}
 		}
 	}
 }
@@ -340,6 +396,154 @@ func TestMainPage_InvalidCriteria(t *testing.T) {
 	mainPage(rec3, req3)
 	if rec3.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400 for missing criteria, got %v", rec3.Code)
+	}
+}
+
+func TestInitBQClient(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name         string
+		emulatorHost string
+		wantErr      bool
+	}{
+		{
+			name:         "WithEmulatorHost",
+			emulatorHost: "localhost:9050",
+			wantErr:      false,
+		},
+		{
+			name:         "WithoutEmulatorHost",
+			emulatorHost: "",
+			wantErr:      true,
+		},
+	}
+
+	for _, tc := range tests {
+		origHost := os.Getenv("BIGQUERY_EMULATOR_HOST")
+		if tc.emulatorHost != "" {
+			os.Setenv("BIGQUERY_EMULATOR_HOST", tc.emulatorHost)
+		} else {
+			os.Unsetenv("BIGQUERY_EMULATOR_HOST")
+		}
+
+		c, err := initBQClient(ctx)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("[%s] initBQClient() error = %v, wantErr = %v", tc.name, err, tc.wantErr)
+		}
+		if c != nil {
+			c.Close()
+		}
+
+		if origHost != "" {
+			os.Setenv("BIGQUERY_EMULATOR_HOST", origHost)
+		} else {
+			os.Unsetenv("BIGQUERY_EMULATOR_HOST")
+		}
+	}
+}
+
+func TestMainPage_QueryExecutionError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": {"code": 400, "message": "unretryable query error", "status": "INVALID_ARGUMENT"}}`))
+	}))
+	defer ts.Close()
+
+	ctx := context.Background()
+	dummyClient, err := bigquery.NewClient(ctx, "public-routing-data-backup",
+		option.WithEndpoint(ts.URL),
+		option.WithoutAuthentication(),
+	)
+	if err != nil {
+		t.Fatalf("failed to create dummy client: %v", err)
+	}
+	defer dummyClient.Close()
+
+	origClient := client
+	client = dummyClient
+	defer func() { client = origClient }()
+
+	tests := []struct {
+		name        string
+		targetURL   string
+		expectedErr string
+	}{
+		{
+			name:        "ASNQueryFails",
+			targetURL:   "/?asn=AS15169",
+			expectedErr: "Error with query",
+		},
+		{
+			name:        "PrefixQueryFails",
+			targetURL:   "/?prefix=8.8.8.0/24",
+			expectedErr: "Error with query",
+		},
+		{
+			name:        "BothQueryFails",
+			targetURL:   "/?asn=AS15169&prefix=8.8.8.0/24",
+			expectedErr: "Error with query",
+		},
+		{
+			name:        "ParseCIDRQueryFails",
+			targetURL:   "/?prefix=8.8.8.8/24&parsecidr=true",
+			expectedErr: "Error with query",
+		},
+	}
+
+	for _, tc := range tests {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", tc.targetURL, nil)
+
+		mainPage(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("[%s] Expected status %v, got %v", tc.name, http.StatusInternalServerError, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), tc.expectedErr) {
+			t.Errorf("[%s] Body does not contain %q: %s", tc.name, tc.expectedErr, rec.Body.String())
+		}
+	}
+}
+
+func TestPullToDB_DownloadError(t *testing.T) {
+	tsErr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": {"code": 400, "message": "unretryable error", "status": "INVALID_ARGUMENT"}}`))
+	}))
+	defer tsErr.Close()
+
+	ctx := context.Background()
+	dummyClient, err := bigquery.NewClient(ctx, "public-routing-data-backup",
+		option.WithEndpoint(tsErr.URL),
+		option.WithoutAuthentication(),
+	)
+	if err != nil {
+		t.Fatalf("failed to create dummy client: %v", err)
+	}
+	defer dummyClient.Close()
+
+	origClient := client
+	client = dummyClient
+	defer func() { client = origClient }()
+
+	origURL := roaURL
+	roaURL = tsErr.URL
+	defer func() { roaURL = origURL }()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/update", nil)
+	req.Header.Set("X-Appengine-Cron", "true")
+
+	pullToDB(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %v", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Error parsing JSON") {
+		t.Errorf("Expected body to contain 'Error parsing JSON', got %s", rec.Body.String())
 	}
 }
 
