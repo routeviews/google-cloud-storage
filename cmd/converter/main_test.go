@@ -16,8 +16,8 @@ import (
 	"github.com/dsnet/compress/bzip2" // Test-only.
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/google/go-cmp/cmp"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
-	"github.com/osrg/gobgp/pkg/packet/mrt"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v3/pkg/packet/mrt"
 	converter "github.com/routeviews/google-cloud-storage/pkg/mrt_converter"
 	pb "github.com/routeviews/google-cloud-storage/proto"
 )

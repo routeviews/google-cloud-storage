@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -13,8 +14,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
-	"github.com/osrg/gobgp/pkg/packet/mrt"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v3/pkg/packet/mrt"
 
 	pb "github.com/routeviews/google-cloud-storage/proto"
 	log "github.com/sirupsen/logrus"
@@ -250,7 +251,7 @@ func convert(collector string, r io.Reader, dst io.Writer, bzip2Reader bzReaderF
 func ObjExists(ctx context.Context, gcsCli *storage.Client, object, bucket string) (bool, error) {
 	_, err := gcsCli.Bucket(bucket).Object(object).Attrs(ctx)
 	if err != nil {
-		if err == storage.ErrObjectNotExist {
+		if errors.Is(err, storage.ErrObjectNotExist) {
 			return false, nil
 		}
 		return false, fmt.Errorf("cannot open gs://%s/%s: %v", bucket, object, err)
