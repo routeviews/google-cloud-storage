@@ -9,10 +9,8 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/dsnet/compress v0.0.1
 	github.com/fsouza/fake-gcs-server v1.31.1
-	github.com/gidoBOSSftw5731/log v0.0.0-20210527210830-1611311b4b64
 	github.com/golang/glog v1.2.5
 	github.com/google/go-cmp v0.7.0
-	github.com/jackc/pgx/v5 v5.10.0
 	github.com/jlaffaye/ftp v0.0.0-20211117213618-11820403398b
 	github.com/osrg/gobgp/v3 v3.37.0
 	github.com/shomali11/util v0.0.0-20220717175126-f0771b70947f
@@ -54,8 +52,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.17.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/pierrec/lz4/v4 v4.1.18 // indirect
