@@ -94,18 +94,6 @@ func TestIntegration_Emulator(t *testing.T) {
 		t.Errorf("Unexpected pullToDB response: %s", rec1.Body.String())
 	}
 
-	// Test cooldown: when updateCooldown is positive and table was just updated, pullToDB skips
-	updateCooldown = 50 * time.Minute
-	recCooldown := httptest.NewRecorder()
-	pullToDB(recCooldown, req1)
-	if recCooldown.Code != http.StatusOK {
-		t.Errorf("pullToDB cooldown expected 200, got %v", recCooldown.Code)
-	}
-	if !strings.Contains(recCooldown.Body.String(), "Skipped: already updated in last 50 mins") {
-		t.Errorf("Unexpected cooldown response: %s", recCooldown.Body.String())
-	}
-	updateCooldown = -1 * time.Second
-
 	// Test download error in pullToDB
 	tsErr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -156,7 +144,7 @@ func TestIntegration_Emulator(t *testing.T) {
 			name:           "QueryMaxlenNotEqualMask",
 			method:         "POST",
 			url:            "/?asn=AS13335",
-			expectedSubstr: []string{"AS13335", "1.1.1.0/24 => 28"},
+			expectedSubstr: []string{"AS13335", "1.1.1.0/24 =&gt; 28"},
 		},
 		{
 			name:           "QueryJSON",

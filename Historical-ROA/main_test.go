@@ -547,5 +547,93 @@ func TestPullToDB_DownloadError(t *testing.T) {
 	}
 }
 
+func TestPullToDB_Cooldown(t *testing.T) {
+	nowMillis := time.Now().UnixMilli()
+	oldMillis := time.Now().Add(-2 * time.Hour).UnixMilli()
+
+	tests := []struct {
+		name             string
+		lastModifiedTime int64
+		cooldown         time.Duration
+		expectCooldown   bool
+	}{
+		{
+			name:             "RecentUpdateSkips",
+			lastModifiedTime: nowMillis,
+			cooldown:         50 * time.Minute,
+			expectCooldown:   true,
+		},
+		{
+			name:             "OldUpdateProceeds",
+			lastModifiedTime: oldMillis,
+			cooldown:         50 * time.Minute,
+			expectCooldown:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(r.URL.Path, "/tables/roas_arr") {
+				resp := fmt.Sprintf(`{
+					"kind": "bigquery#table",
+					"tableReference": {
+						"projectId": "public-routing-data-backup",
+						"datasetId": "historical",
+						"tableId": "roas_arr"
+					},
+					"lastModifiedTime": "%d"
+				}`, tc.lastModifiedTime)
+				w.Write([]byte(resp))
+				return
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error": {"code": 400, "message": "stop here", "status": "INVALID_ARGUMENT"}}`))
+		}))
+
+		ctx := context.Background()
+		dummyClient, err := bigquery.NewClient(ctx, "public-routing-data-backup",
+			option.WithEndpoint(ts.URL),
+			option.WithoutAuthentication(),
+		)
+		if err != nil {
+			ts.Close()
+			t.Fatalf("[%s] failed to create dummy client: %v", tc.name, err)
+		}
+
+		origClient := client
+		client = dummyClient
+		origCooldown := updateCooldown
+		updateCooldown = tc.cooldown
+		origURL := roaURL
+		roaURL = ts.URL
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/update", nil)
+		req.Header.Set("X-Appengine-Cron", "true")
+
+		pullToDB(rec, req)
+
+		client = origClient
+		updateCooldown = origCooldown
+		roaURL = origURL
+		dummyClient.Close()
+		ts.Close()
+
+		if tc.expectCooldown {
+			if rec.Code != http.StatusOK {
+				t.Errorf("[%s] Expected status 200, got %v", tc.name, rec.Code)
+			}
+			if !strings.Contains(rec.Body.String(), "Skipped: already updated in last 50 mins") {
+				t.Errorf("[%s] Expected body to contain 'Skipped', got %s", tc.name, rec.Body.String())
+			}
+		} else {
+			if strings.Contains(rec.Body.String(), "Skipped: already updated in last 50 mins") {
+				t.Errorf("[%s] Did not expect cooldown skip, got %s", tc.name, rec.Body.String())
+			}
+		}
+	}
+}
+
 
 
