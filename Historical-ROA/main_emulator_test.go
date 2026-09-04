@@ -64,7 +64,14 @@ func TestIntegration_Emulator(t *testing.T) {
 	}
 
 	// 2. Test Ingestion via pullToDB
-	fakeJSON := `{"roas":[{"asn":"AS15169","prefix":"8.8.8.0/24","maxLength":24,"ta":"arin"}]}`
+	fakeJSON := `{
+		"roas": [
+			{"asn": "AS15169", "prefix": "8.8.8.0/24", "maxLength": 24, "ta": "arin"},
+			{"asn": "AS13335", "prefix": "1.1.1.0/24", "maxLength": 28, "ta": "apnic"},
+			{"asn": "AS3356", "prefix": "invalid-no-slash", "maxLength": 24, "ta": "arin"},
+			{"asn": "AS3356", "prefix": "4.0.0.0/badmask", "maxLength": 24, "ta": "arin"}
+		]
+	}`
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(fakeJSON))
@@ -87,31 +94,93 @@ func TestIntegration_Emulator(t *testing.T) {
 		t.Errorf("Unexpected pullToDB response: %s", rec1.Body.String())
 	}
 
-	// 3. Test Web Interface Querying via mainPage
-	rec2 := httptest.NewRecorder()
-	req2 := httptest.NewRequest("POST", "/?asn=AS15169", nil)
+	// Test download error in pullToDB
+	tsErr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("download failure"))
+	}))
+	defer tsErr.Close()
 
-	mainPage(rec2, req2)
-	if rec2.Code != http.StatusOK {
-		t.Errorf("mainPage query failed: status %v, body: %s", rec2.Code, rec2.Body.String())
+	roaURL = tsErr.URL
+	recErr := httptest.NewRecorder()
+	pullToDB(recErr, req1)
+	if recErr.Code != http.StatusInternalServerError {
+		t.Errorf("pullToDB error expected 500, got %v", recErr.Code)
+	}
+	roaURL = ts.URL
+
+	// 3. Test Web Interface and JSON Querying via mainPage
+	queries := []struct {
+		name           string
+		method         string
+		url            string
+		expectedSubstr []string
+	}{
+		{
+			name:           "QueryByASN",
+			method:         "POST",
+			url:            "/?asn=AS15169",
+			expectedSubstr: []string{"AS15169", "8.8.8.0/24"},
+		},
+		{
+			name:           "QueryByPrefix",
+			method:         "POST",
+			url:            "/?prefix=8.8.8.0/24",
+			expectedSubstr: []string{"AS15169", "8.8.8.0/24"},
+		},
+		{
+			name:           "QueryByBoth",
+			method:         "POST",
+			url:            "/?asn=AS15169&prefix=8.8.8.0/24",
+			expectedSubstr: []string{"AS15169", "8.8.8.0/24"},
+		},
+		{
+			name:           "QueryWithParseCIDR",
+			method:         "POST",
+			url:            "/?prefix=8.8.8.8/24&parsecidr=true",
+			expectedSubstr: []string{"AS15169", "8.8.8.0/24"},
+		},
+		{
+			name:           "QueryMaxlenNotEqualMask",
+			method:         "POST",
+			url:            "/?asn=AS13335",
+			expectedSubstr: []string{"AS13335", "1.1.1.0/24 =&gt; 28"},
+		},
+		{
+			name:           "QueryJSON",
+			method:         "GET",
+			url:            "/?asn=AS15169&json=true",
+			expectedSubstr: []string{"AS15169", "8.8.8.0/24"},
+		},
+		{
+			name:           "QueryJSON_MaxlenNotEqualMask",
+			method:         "GET",
+			url:            "/?asn=AS13335&json=true",
+			expectedSubstr: []string{"AS13335", "1.1.1.0/24 => 28"},
+		},
+		{
+			name:           "QueryEmptyResults",
+			method:         "POST",
+			url:            "/?asn=AS999999",
+			expectedSubstr: []string{"Historical ROA Query"},
+		},
 	}
 
-	body2 := rec2.Body.String()
-	if !strings.Contains(body2, "AS15169") || !strings.Contains(body2, "8.8.8.0/24") {
-		t.Errorf("mainPage did not render expected BQ data: %s", body2)
-	}
+	for _, tc := range queries {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(tc.method, tc.url, nil)
 
-	// 4. Test JSON Endpoint via mainPage
-	rec3 := httptest.NewRecorder()
-	req3 := httptest.NewRequest("GET", "/?asn=AS15169&json=true", nil)
+		mainPage(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("[%s] mainPage query failed: status %v, body: %s", tc.name, rec.Code, rec.Body.String())
+			continue
+		}
 
-	mainPage(rec3, req3)
-	if rec3.Code != http.StatusOK {
-		t.Errorf("mainPage json failed: status %v", rec3.Code)
-	}
-
-	body3 := rec3.Body.String()
-	if !strings.Contains(body3, "AS15169") || !strings.Contains(body3, "8.8.8.0/24") {
-		t.Errorf("mainPage json did not return expected structure: %s", body3)
+		body := rec.Body.String()
+		for _, substr := range tc.expectedSubstr {
+			if !strings.Contains(body, substr) {
+				t.Errorf("[%s] body does not contain %q: %s", tc.name, substr, body)
+			}
+		}
 	}
 }
